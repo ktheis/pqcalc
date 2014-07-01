@@ -568,10 +568,12 @@ def quad(A, B, C):
     return sol_big, sol_small
 
 
-def quadp(A, B, C): return quad(A, B, C)[0]
+def quadp(A, B, C):
+    return quad(A, B, C)[0]
 
 
-def quadn(A, B, C): return quad(A, B, C)[1]
+def quadn(A, B, C):
+    return quad(A, B, C)[1]
 
 
 def alldigits(a):

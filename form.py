@@ -1,11 +1,10 @@
 from quantities import known_units, functions, unitquant
 
-unit_list = [(len(s),s) for s in unitquant if s != "m"]
+unit_list = [(len(s), s) for s in unitquant if s != "m"]
 unit_list.sort()
 unit_list.reverse()
 unit_list = [s[1] for s in unit_list]
 unit_list.append('m')
-
 
 selector = '''
 <select %s onchange="insertAtCaret('commands',this.options[this.selectedIndex].value);">
@@ -48,36 +47,39 @@ def knownform(known, mob, descr):
         return "<br>".join(known.split("\n")), selector2 % (size, "".join(options))
     if not descr.startswith("quant") or mob:
         return "<br>".join(known.split("\n")), selector % (size, "".join(options))
-    options = ['<option value="" selected="selected" disable="disabled">Click to use for next calculation</option>'] + options
+    options = [
+                  '<option value="" selected="selected" disable="disabled">Click to use for next calculation</option>'] + options
     return selector % (size, "".join(options)), ""
 
-def newform (outp, logp, mem, known, log, mob, prefill=""):
+
+def newform(outp, logp, mem, known, log, mob, prefill=""):
     mem = "\n".join(mem)
     known = "\n".join(known)
     logbook = log + "\n" + "\n".join(logp)
     out = "\n".join(outp)
     if mob:
         keyb = ""
-        if mob=="ipod" and out:
+        if mob == "ipod" and out:
             out = calculationtempl % out
     else:
         keyb = 'class="keyboardInput"'
     known, extra = knownform(known, mob, "quantities")
     if not known:
         known = " -- nothing yet -- "
-    a = knownform("()\n".join(functions)+"()\n using  \n in  ", mob, "functions")[1]
+    a = knownform("()\n".join(functions) + "()\n using  \n in  ", mob, "functions")[1]
     b = knownform("\n".join([k for k in known_units]), mob, "units")[1]
     extra = extra + a + b + "<br>"
     if prefill:
         prefill = exdict[prefill]
-    data = dict(output=out, memory = mem, known = known, extra = extra, logbook = logbook, keyboard=keyb, prefill = prefill)
+    data = dict(output=out, memory=mem, known=known, extra=extra, logbook=logbook, keyboard=keyb, prefill=prefill)
     if mob == "ipod":
         return templateipod % data
     else:
         return template % data + "<h3>Example calculations</h3><pre>%s</pre>" % exhtml
 
-def printableLog (symbols, symbollist, logbook):
-    known = "\n".join([s+"="+symbols[s].__str__() for s in symbollist])
+
+def printableLog(symbols, symbollist, logbook):
+    known = "\n".join([s + "=" + symbols[s].__str__() for s in symbollist])
     return printableview % (known, logbook)
 
 
@@ -241,7 +243,6 @@ for ex in examples:
     exdict[head] = prob
 
 exhtml = "".join(exhtml)
-
 
 blank = '''<html>
 <body>
