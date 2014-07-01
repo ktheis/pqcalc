@@ -84,13 +84,14 @@ class Q(object):
     def __repr__(self):
         if self.name in unitquant and self.__dict__ == unitquant[self.name].__dict__:
             return "Q('%s')" % self.name
+        self.rnumber = repr(self.number)
         if self.provenance:
-            return "Q(%(number)s, '%(name)s', %(units)s, %(sigfig)d, %(prefu)s, %(provenance)s)" % self.__dict__
+            return "Q(%(rnumber)s, '%(name)s', %(units)s, %(sigfig)d, %(prefu)s, %(provenance)s)" % self.__dict__
         if self.prefu:
-            return "Q(%(number)s, '%(name)s', %(units)s, %(sigfig)d, %(prefu)s)" % self.__dict__
+            return "Q(%(rnumber)s, '%(name)s', %(units)s, %(sigfig)d, %(prefu)s)" % self.__dict__
         if self.name:
-            return "Q(%(number)s, '%(name)s', %(units)s, %(sigfig)d)" % self.__dict__
-        return "Q(%(number)s, units=%(units)s, sig=%(sigfig)d)" % self.__dict__
+            return "Q(%(rnumber)s, '%(name)s', %(units)s, %(sigfig)d)" % self.__dict__
+        return "Q(%(rnumber)s, units=%(units)s, sig=%(sigfig)d)" % self.__dict__
 
     def __str__(self):
         number, units = unit_string(self.number, self.units, self.prefu)
@@ -167,7 +168,7 @@ class Q(object):
     def __mul__(self, other):
         units = tuple([x[0] + x[1] for x in zip(self.units, other.units)])
         number = self.number * other.number
-        sigfig = min(self.sigfig, other.sigfig)
+        sigfig = min(self.sigfig, other.sigfig) + 1
         name = "%s * %s"
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, sigfig, prefu, provenance)
@@ -176,12 +177,12 @@ class Q(object):
         units = tuple([x[0] - x[1] for x in zip(self.units, other.units)])
         number = self.number / other.number
         name = "%s / %s"
-        sigfig = min(self.sigfig, other.sigfig)
+        sigfig = min(self.sigfig, other.sigfig) + 1
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, sigfig, prefu, provenance)
 
     def __neg__(self):
-        return Q(-self.number, "-%s", self.units, self.sigfig, self.prefu[:], [self])
+        return Q(-self.number, "-%s", self.units, self.sigfig, self.prefu, (self,))
 
     def __pos__(self):
         return self
@@ -485,10 +486,18 @@ def minimum(a, b):
 
 
 def exp(a):
+    """uses rules by C Mullis and coworkers
+
+    exp(10.34) has 3 significant figures (two decimal places in 10.34, always add one)
+    sigfig(10.34) = 4
+    mostsig(10.34) = +1
+    decimals(10.34) = 2 = sigfig - most - 1
+    """
     try:
         if a.units == unity:
             number = math_exp(a.number)
-            return Q(number, "exp(%s)", a.units, a.sigfig, a.prefu, (a,))
+            mostinargument = mostsig(a.number)
+            return Q(number, "exp(%s)", a.units, a.sigfig - mostinargument, a.prefu, (a,))
         else:
             raise_QuantError("Can't take e to the power of quantity with units", "exp(%s)", (a,))
     except OverflowError:
@@ -498,28 +507,44 @@ def exp(a):
 def sqrt(a):
     if a.number < 0.0:
         raise_QuantError("Won't take square root of negative number", "sqrt(%s)", (a,))
-    answer = a ** number2quantity("0.5")
+    answer = a ** Q(0.5)
     answer.name = "sqrt(%s)"
     answer.provenance = (a,)
     return answer
 
 
 def log(a):
+    """uses rules by C Mullis and coworkers
+
+    log(10.34) has 5 significant decimal places (four significant figures in 10.34, always add 1)
+    sigfig(10.34) = 4
+    mostsig(result = ~1) = 0
+    sigfig(result) = mostsig(result) + sigdec(result) + 1 = 6
+    """
     try:
         if a.units == unity:
             number = math_log10(a.number)
-            return Q(number, "log(%s)", a.units, a.sigfig, a.prefu, (a,))
+            mostinresult = mostsig(number)
+            return Q(number, "log(%s)", a.units, a.sigfig + mostinresult + 2, a.prefu, (a,))
         else:
             raise_QuantError("Can't take log() of quantity with units", "log(%s)", (a,))
-    except  ValueError:
+    except ValueError:
         raise_QuantError("The argument of log() can't be zero or negative", "log(%s)", (a,))
 
 
 def ln(a):
+    """uses rules by C Mullis and coworkers
+
+    log(10.34) has 5 significant decimal places (four significant figures in 10.34, don't add 1)
+    sigfig(10.34) = 4
+    mostsig(result = ~1) = 0
+    sigfig(result) = mostsig(result) + sigdec(result) = 5
+    """
     try:
         if a.units == unity:
             number = math_log(a.number)
-            return Q(number, "ln(%s)", a.units, a.sigfig, a.prefu, (a,))
+            mostinresult = mostsig(number)
+            return Q(number, "ln(%s)", a.units, a.sigfig + mostinresult + 1, a.prefu, (a,))
         else:
             raise_QuantError("Can't take ln() of quantity with units", "ln(%s)", (a,))
     except ValueError:
@@ -532,14 +557,25 @@ def quad(A, B, C):
         raise_QuantError("discriminant %f is negative, can't take its root" % discriminant.number, "quad(%s, %s, %s)",
                          (A, B, C))
     root = sqrt(discriminant)
-    prefu, provenance = inherit_ternary(A, B, C)
-    return (-B + root) / (Q(2) * A), (-B - root) / (Q(2) * A)
+    sol_big, sol_small = (-B + root) / (Q(2) * A), (-B - root) / (Q(2) * A)
+    if B.number > 0:
+        sol_big, sol_small = sol_small, sol_big
+    if abs(B.number) - root.number < 0.000001:
+        sol_big_temp = Q(sol_big.number, sig=sol_big.sigfig, units=sol_big.units, prefu=sol_big.prefu)
+        sol_big_temp.provenance = (A, B, C)
+        sol_big_temp.name = "(text{quadp}(%s, %s, %s))"
+        sol_small = C / A / sol_big_temp
+    return sol_big, sol_small
 
 
-def quadp(A, B, C): quad(A, B, C)[0]
+def quadp(A, B, C): return quad(A, B, C)[0]
 
 
-def quadn(A, B, C): quad(A, B, C)[1]
+def quadn(A, B, C): return quad(A, B, C)[1]
+
+
+def alldigits(a):
+    return Q(a.number, "alldigits(%s)", a.units, 20, a.prefu[:], [a])
 
 
 Kelvin = Q("K")
@@ -563,7 +599,7 @@ def CtoKscale(a):
             raise_QuantError("Input temperature is lower than absolute zero", "text{CtoKscale}(%s)", (a,))
         return Kscale
     else:
-        raise_QuantError("Input temperature has to be a unitless number", "text{CtoKscale}(%s)", (a,))
+        raise_QuantError("Input temperature has to be a unit-less number", "text{CtoKscale}(%s)", (a,))
 
 
 functions = '''exp sqrt log ln quadp quadn minimum CtoKscale FtoKscale'''.split(" ")
