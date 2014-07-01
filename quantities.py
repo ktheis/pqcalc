@@ -1,35 +1,4 @@
-""" Tests and ideas
 
-c = 7 (g m)/(mol s)
-
-calc([],["f = 3.4 mg + 20 s"],True)
-
-unitquant[kg]
-
-Quantity(3.5)
-Quantity("3.5")
-Quantity("kg")
-
-figure_out_name("fg90 = 3.4 mg", [], [])
-
-calc([],["f = 3.4 mg", "m = 20 s"],False)
-
-text = "24.5e-65 kg/m/s^2 / g0 + t0^2 + log(x0)"
-tokens = scan(text)
-triple_tokens = make_triple_tokens(tokens)
-stripped = "".join(t[1] if t[0]=="O" else "%*s" % (len(t[1]),t[1]) for t in tokens)
-shortcut = "".join(t[1] if t[0]=="O" else "%*s" % (len(t[1]),t[0]) for t in tokens)
-triple_shortcut = "".join(t[1]+("%*s" % (len(t[2]),t[0])) for t in triple_tokens)
-print(text)
-print(tokens)
-print(stripped)
-print(shortcut.replace("O","*"))
-print(triple_shortcut)
-i = create_Python_expression(triple_tokens, dict(g0="g_val", t0="t_val", x0="x_val"))
-print (i)
-
-
-"""
 from __future__ import division
 
 from math import log10 as math_log10
@@ -599,3 +568,36 @@ def CtoKscale(a):
 
 functions = '''exp sqrt log ln quadp quadn minimum CtoKscale FtoKscale'''.split(" ")
 unit_list = []
+
+""" Tests and ideas
+
+c = 7 (g m)/(mol s)
+
+calc([],["f = 3.4 mg + 20 s"],True)
+
+unitquant[kg]
+
+Quantity(3.5)
+Quantity("3.5")
+Quantity("kg")
+
+figure_out_name("fg90 = 3.4 mg", [], [])
+
+calc([],["f = 3.4 mg", "m = 20 s"],False)
+
+text = "24.5e-65 kg/m/s^2 / g0 + t0^2 + log(x0)"
+tokens = scan(text)
+triple_tokens = make_triple_tokens(tokens)
+stripped = "".join(t[1] if t[0]=="O" else "%*s" % (len(t[1]),t[1]) for t in tokens)
+shortcut = "".join(t[1] if t[0]=="O" else "%*s" % (len(t[1]),t[0]) for t in tokens)
+triple_shortcut = "".join(t[1]+("%*s" % (len(t[2]),t[0])) for t in triple_tokens)
+print(text)
+print(tokens)
+print(stripped)
+print(shortcut.replace("O","*"))
+print(triple_shortcut)
+i = create_Python_expression(triple_tokens, dict(g0="g_val", t0="t_val", x0="x_val"))
+print (i)
+
+
+"""

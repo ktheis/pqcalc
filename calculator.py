@@ -11,16 +11,16 @@ except:
     from sre import Scanner
 
 def identifier(scanner, token): return ["I", token.strip()]
-def operator(scanner, token):   return ["O", token.strip()]
-def float2(scanner, token):      return ["N", token.strip()]
-def comment(scanner, token):      return ["C", token.strip()]
+def operator(scanner, token): return ["O", token.strip()]
+def float2(scanner, token): return ["N", token.strip()]
+def comment(scanner, token): return ["C", token.strip()]
 
 scanner = Scanner([
     (r"(([a-zA-Z]\w*(\[[^]]+\])?)|(\[[^]]+\])|(\{[^}]+\})|\$)", identifier),
     (r"((\d*\.\d+)|(\d+\.?))([Ee][+-]?\d+)?", float2),
     (r"[ ,()/*^+-]+", operator),
     (r"[#!].*", comment)
-    ])
+])
 
 def scan(t):
     """scan text for identifers(I), operators(O), numbers(N) and comments(C)"""
@@ -208,8 +208,8 @@ def calc_without_assignment (a, output, symbols, mob):
             output.append("`%s = %s`" % (math_name(quant.strip()), q.intermediate_steps(0, math=(mob!="ipud"))))
     elif " in " in a:
         quant, units = a.split(" in ")
-        tmp = interpret(units, symbols, output)
-        task = tmp.task(math=(mob!="ipud"))
+        tmp = interpret(units, symbols, output, mob)
+        task = tmp.task(math = (mob != "ipud"))
         qq = symbols[quant.strip()] / tmp
         number3, units2 = quantities.unit_string(qq.number, qq.units, math=(mob!="ipud"))
         nstr = quantities.numberstring (number3, qq.sigfig, math=True)
