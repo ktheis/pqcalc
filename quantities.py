@@ -1,4 +1,18 @@
+"""
 
+Classes and functions to do arithmetic with physical quantities.
+
+At the core of this module is the class Q, which defines a numbers that has units, a name, and a crude indication
+of uncertainty (significant figures).
+
+The way significant figures are treated here is just for number formatting - all calculations are done to the
+maximum precision of python floats (~57 bits, equivalent to ~17 decimal digits). There is a special function
+"alldigits" to retrieve the full internal representation of the number.
+
+The online calculator hosted at http:\\\\ktheis.pythonanywhere.com uses this code.
+
+Author: Karsten Theis (ktheis@westfield.ma.edu)
+"""
 from __future__ import division
 
 from math import log10 as math_log10
