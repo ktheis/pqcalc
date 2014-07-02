@@ -1,7 +1,8 @@
 """
 Module to tie the quantities, calculator, and form modules together into an online calculator.
 
-The calculator is hosted on ktheis.pythonanywhere.com. You define values of named physical quantities,
+The calculator is hosted on ktheis.pythonanywhere.com, but you could have a local server or run it
+on other platforms. In the calculator, you define values of named physical quantities,
 and then do arithmetic with them. The web server is implemented using web.py. Depending on the client
 browser, the server chooses which version of the web interface to show. For example, the screen layout
 for the iPhone is one column and opens an on-screen keyboard that has easy access to keys such as "=".
