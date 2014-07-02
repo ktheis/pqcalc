@@ -39,6 +39,10 @@ from form import newform, printableLog
 
 
 class index:
+    """
+    Defines the home page of the PQCalc server.
+
+    """
     def GET(self):
         web.header('Content-Type', 'text/html; charset=utf-8', unique=True)
         known = [" -- nothing yet -- "]
@@ -49,6 +53,10 @@ class index:
         return newform("", "", "", known, "", mobile)
 
     def POST(self):
+        """
+        Load quantities defined previously by the user, process current commands and output results.
+        """
+
         web.header('Content-Type', 'text/html; charset=utf-8', unique=True)
         browser = web.ctx.env['HTTP_USER_AGENT'].lower()
         mobile = ("ipad" in browser or "iphone" in browser or "nexus" in browser)
@@ -89,6 +97,9 @@ class static:
 
 
 class example:
+    """
+    Shows the PQCalc form pre-filled with example calculation commands.
+    """
     def GET(self, examplenr):
         web.header('Content-Type', 'text/html; charset=utf-8', unique=True)
         browser = web.ctx.env['HTTP_USER_AGENT'].lower()
