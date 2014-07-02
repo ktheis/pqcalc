@@ -1,3 +1,14 @@
+"""
+Functions to run an interpreter for expressions containing physical quantities.
+
+Based on the Q class in the quantities module, this provides functions to input and interpret expressions,
+calculating their values and showing the steps, and finally storing the quantities so that they can be
+used for further calculations.
+
+This is an arithmetic calculator rather than an algebra system (i.e. unknowns are not allowed and will lead to
+error messages). Output is either in HTML or in MathML via Asciimath.
+"""
+
 from __future__ import division
 
 import quantities
