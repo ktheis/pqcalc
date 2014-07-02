@@ -1,3 +1,14 @@
+"""
+Module to tie the quantities, calculator, and form modules together into an online calculator.
+
+The calculator is hosted on ktheis.pythonanywhere.com. You define values of named physical quantities,
+and then do arithmetic with them. The web server is implemented using web.py. Depending on the client
+browser, the server chooses which version of the web interface to show. For example, the screen layout
+for the iPhone is one column and opens an on-screen keyboard that has easy access to keys such as "=".
+On the other hand, the screen layout for laptops and desktops is two columns and includes a javascript
+keyboard accessible with a mouse or stylus.
+
+"""
 # This file contains the WSGI configuration required to serve up your
 # web application at http://<your-username>.pythonanywhere.com/
 # It works by setting the variable 'application' to a WSGI handler of some
