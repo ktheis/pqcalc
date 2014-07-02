@@ -2,7 +2,7 @@
 
 Classes and functions to do arithmetic with physical quantities.
 
-At the core of this module is the class Q, which defines a numbers that has units, a name, and a crude indication
+At the core of this module is the class Q, which defines a number that has units, a name, and a crude indication
 of uncertainty (significant figures).
 
 The way significant figures are treated here is just for number formatting - all calculations are done to the
