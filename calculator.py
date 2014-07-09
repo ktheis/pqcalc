@@ -1,3 +1,4 @@
+# -*- coding: latin-1 -*-
 """
 Functions to run an interpreter for expressions containing physical quantities.
 
@@ -37,7 +38,7 @@ def comment(scanner, token): return ["C", token.strip()]
 
 
 scanner = Scanner([
-    (r"(([a-zA-Z]\w*(\[[^]]+\])?)|(\[[^]]+\])|(\{[^}]+\})|\$)", identifier),
+    (r"(([a-zA-Zμ]\w*(\[[^]]+\])?)|(\[[^]]+\])|(\{[^}]+\})|\$)", identifier),
     (r"((\d*\.\d+)|(\d+\.?))([Ee][+-]?\d+)?", float2),
     (r"[ ,()/*^+-]+", operator),
     (r"[#!].*", comment)
@@ -84,7 +85,7 @@ def fixoperator(operator, tokens):
 
 def make_paired_tokens(raw_tokens):
     """
-    Process raw tokens into triple tokens containing item ID (N, U, I, Z) pre-operator and item text.
+    Process raw tokens into paired tokens containing item ID (N, U, I, Z), pre-operator and item text.
 
     This is the first step in turning the input text into a Python expression.
     Add implicit '*' operators, pick up units(I -> U) and deal with comments.
@@ -173,7 +174,7 @@ def create_Python_expression(paired_tokens, symbols):
                 if ttext in symbols:
                     result.append(repr(symbols[ttext]))
                 else:
-                    raise CalcError("unknown symbol %s encountered" % ttext)
+                    raise ValueError("unknown symbol %s encountered" % ttext)
             continue
         quant = ["Q('%s')" % ttext]
         if ttype == "N" and paired_tokens[0][0] != "U":
@@ -197,6 +198,9 @@ def interpret(t, symbols, output, mob):
     except QuantError as err:
         explain_failure(t, err, output, mob)
         raise CalcError("")
+    except SyntaxError as err:
+        raise CalcError('%s<br><br><div style="color: red;">Mangled math</div><br><br>'
+                        % t)
     except OverflowError as duh:
         raise CalcError('%s<br><br><div style="color: red;">Math overflow</div><br><br>'
                         % t)
@@ -345,8 +349,12 @@ def calc(oldsymbols, commands, mob):
             result0 = interpret(expression, symbols, output, mob)
             show_work(result0, sym, expression, output, logput, math=(mob != 'ipud'))
             register_result(result0, sym, symbols, symbollist, output)
-        except CalcError as err:
+        except QuantError as err:
             output.append(err.args[0][0])
+        except CalcError as err:
+            output.append(err.args[0])
+        except ValueError as err:
+            output.append(err.args[0])
         output.append("<hr>")
     memory = [symbols[s].__repr__() for s in symbollist]
     known = [s + " = " + symbols[s].__str__() for s in symbollist]
@@ -373,3 +381,17 @@ if __name__ == "__main__":
             print (line)
         command = raw_input("pqcalc>>>")    
         
+
+"""
+Test input that should fail gracefully:
+
+sadf = 56 * (67 )()
+
+asdf = 5 + t + &#@
+
+gg = sin(45)
+
+vv = 10^10^10
+
+omg = 1 / 10^-1000
+"""

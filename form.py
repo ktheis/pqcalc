@@ -1,55 +1,41 @@
-from quantities import known_units, functions, unitquant
-
-unit_list = [(len(s), s) for s in unitquant if s != "m"]
-unit_list.sort()
-unit_list.reverse()
-unit_list = [s[1] for s in unit_list]
-unit_list.append('m')
+from quantities import functions, known_units
 
 selector = '''
-<select %s onchange="insertAtCaret('commands',this.options[this.selectedIndex].value);">
+<select %s onchange="insertAtCaret('commands',this.options[this.selectedIndex].value, %s);">
   %s
 </select></FONT>'''
-
-selector2 = '''
-<select %s onchange="insertAtCaretBackup('commands',this.options[this.selectedIndex].value);">
-  %s
-</select></FONT>'''
-
-'''style="width: 100%%" STYLE="font-family : monospace; font-size : 12pt">
-'''
 
 selectoroption = '''
   <option value="%s">%s</option>'''
 
+def fill_selector(header, choices, backup=0):
+    html = ['<option value="" selected="selected" disable="disabled">%s</option>' % header]
+    for term in choices:
+        html.append(selectoroption % (term, term))
+    return selector % ("", backup, "".join(html))
 
-def knownform(known, mob, descr):
-    if not known:
-        return "", ""
-    options = []
-    if descr.startswith("unit"):
-        knownlist = known.split("\n")
-        knownlist = [(k.lower(), k) for k in knownlist]
-        knownlist.sort()
-        known = "\n".join(k[1] for k in knownlist)
-    if not descr.startswith("quant") or mob:
-        options.append('<option value="" selected="selected" disable="disabled">%s</option>' % descr)
-    for symbol in known.split("\n"):
-        sym = symbol.split("=")[0]
-        if descr.startswith("quant") and not mob:
-            options.append(selectoroption % (sym, symbol))
-        else:
-            options.append(selectoroption % (sym, sym))
-    size = ""
-    if descr.startswith("quant") or mob:
-        size = "size = 8"
-    if descr.startswith("f"):
-        return "<br>".join(known.split("\n")), selector2 % (size, "".join(options))
-    if not descr.startswith("quant") or mob:
-        return "<br>".join(known.split("\n")), selector % (size, "".join(options))
-    options = [
-                  '<option value="" selected="selected" disable="disabled">Click to use for next calculation</option>'] + options
-    return selector % (size, "".join(options)), ""
+# unit selectors, pre-baked
+unit_list = known_units.keys()
+unit_list.sort(key=lambda x: x.lower())
+unit_selector = fill_selector("units", unit_list)
+
+# function selectors, pre-baked
+function_list = [f + "()" for f in functions]
+function_list.extend(["using", "in "])
+function_selector = fill_selector("functions", function_list, backup=1)
+
+
+def quant_selectors(known, mob):
+    """ Make the selector for the left (what's next) box and the selector for the right (knowns) box
+    """
+    choices = known.split("\n")
+    if mob:
+        return "<br>".join(choices), fill_selector("quantities", choices)
+    html = ['<option value="" selected="selected" disable="disabled">Click to use for next calculation</option>']
+    for term in choices:
+        sym = term.split("=")[0]
+        html.append(selectoroption % (sym, term))
+    return selector % ("size = 8", 0, "".join(html)), ""
 
 
 def newform(outp, logp, mem, known, log, mob, prefill=""):
@@ -63,16 +49,15 @@ def newform(outp, logp, mem, known, log, mob, prefill=""):
             out = calculationtempl % out
     else:
         keyb = 'class="keyboardInput"'
-    known, extra = knownform(known, mob, "quantities")
+    knownbox, selectors = quant_selectors(known, mob)
     if not known:
-        known = " -- nothing yet -- "
-    a = knownform("()\n".join(functions) + "()\n using  \n in  ", mob, "functions")[1]
-    b = knownform("\n".join([k for k in known_units]), mob, "units")[1]
-    extra = extra + a + b + "<br>"
+        knownbox = " -- nothing yet -- "
+    selectors = selectors + unit_selector + function_selector + "<br>"
     if prefill:
         prefill = exdict[prefill]
-    data = dict(output=out, memory=mem, known=known, extra=extra, logbook=logbook, keyboard=keyb, prefill=prefill)
+    data = dict(output=out, memory=mem, known=knownbox, selectors=selectors, logbook=logbook, keyboard=keyb, prefill=prefill, head=head, buttons=buttons)
     if mob == "ipod":
+        data["head"] = headipod
         return templateipod % data
     else:
         return template % data + "<h3>Example calculations</h3><pre>%s</pre>" % exhtml
@@ -80,7 +65,7 @@ def newform(outp, logp, mem, known, log, mob, prefill=""):
 
 def printableLog(symbols, symbollist, logbook):
     known = "\n".join([s + "=" + symbols[s].__str__() for s in symbollist])
-    return printableview % (known, logbook)
+    return printable_view % (known, logbook)
 
 
 example = '''problem = 1.71
@@ -244,25 +229,7 @@ for ex in examples:
 
 exhtml = "".join(exhtml)
 
-blank = '''<html>
-<body>
-<h1> PQCalc</h1>
-<form enctype="multipart/form-data" action="." method="post">
-<h2> Input</h2><TEXTAREA ROWS=10 COLS=40 NAME="commands"></TEXTAREA>
-<p><input type="submit" name = "sub" value="calculate" /></p>
-<input type="hidden" name="memory" value = ""/>
-<input type="hidden" name="logbook" value = ""/>
-<h2> Known units </h2>
-%s
-<br>(define others yourself, e.g. by first typing mi = 1.609344 km, and then distance = 1 mi)
-<h2>Example calculation</h2>
-(cut and paste ...)
-<PRE>%s</PRE>
-</body>
-</html>''' % (" ".join(unit_list), exhtml)
-
-template = '''<html>
-<head>
+headipod = '''<head>
 <meta name="format-detection" content="telephone=no">
 
 <link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
@@ -272,49 +239,55 @@ template = '''<html>
   src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full">
 </script>
 
-
 <script type="text/javascript">
 <!--
+function insertAtCaret(thisChar, thereId, backup) {
+	function theCursorPosition(ofThisInput) {
+		// set a fallback cursor location
+		var theCursorLocation = 0;
 
-function insertAtCaret(areaId,text) {
-    var txtarea = document.getElementById(areaId);
-    var scrollPos = txtarea.scrollTop;
-    var strPos = 0;
-    var br = ((txtarea.selectionStart || txtarea.selectionStart == '0') ?
-        "ff" : (document.selection ? "ie" : false ) );
-    if (br == "ie") {
-        txtarea.focus();
-        var range = document.selection.createRange();
-        range.moveStart ('character', -txtarea.value.length);
-        strPos = range.text.length;
-    }
-    else if (br == "ff") strPos = txtarea.selectionStart;
+		// find the cursor location via IE method...
+		if (document.selection) {
+			ofThisInput.focus();
+			var theSelectionRange = document.selection.createRange();
+			theSelectionRange.moveStart('character', -ofThisInput.value.length);
+			theCursorLocation = theSelectionRange.text.length;
+		} else if (ofThisInput.selectionStart || ofThisInput.selectionStart == '0') {
+			// or the FF way
+			theCursorLocation = ofThisInput.selectionStart;
+		}
+		return theCursorLocation;
+	}
 
-    var front = (txtarea.value).substring(0,strPos);
-    var back = (txtarea.value).substring(strPos,txtarea.value.length);
-    txtarea.value=front+text+back;
-    strPos = strPos + text.length;
-    if (br == "ie") {
-        txtarea.focus();
-        var range = document.selection.createRange();
-        range.moveStart ('character', -txtarea.value.length);
-        range.moveStart ('character', strPos);
-        range.moveEnd ('character', 0);
-        range.select();
-    }
-    else if (br == "ff") {
-        txtarea.selectionStart = strPos;
-        txtarea.selectionEnd = strPos;
-        txtarea.focus();
-    }
-    txtarea.scrollTop = scrollPos;
+	// now get ready to place our new character(s)...
+	var theIdElement = document.getElementById(thereId);
+	var currentPos = theCursorPosition(theIdElement);
+	var origValue = theIdElement.value;
+	var newValue = origValue.substr(0, currentPos) + thisChar + origValue.substr(currentPos);
+
+	theIdElement.value = newValue;
+
 }
+
+</script>
+
+</head>
+'''
+
+head = '''<head>
+<meta name="format-detection" content="telephone=no">
+
+<link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
+<script type="text/javascript" src="/js/keyboard.js" charset="UTF-8"></script>
+
+<script type="text/javascript"
+  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full">
 </script>
 
 <script type="text/javascript">
 <!--
 
-function insertAtCaretBackup(areaId,text) {
+function insertAtCaret(areaId,text,backup) {
     var txtarea = document.getElementById(areaId);
     var scrollPos = txtarea.scrollTop;
     var strPos = 0;
@@ -331,7 +304,7 @@ function insertAtCaretBackup(areaId,text) {
     var front = (txtarea.value).substring(0,strPos);
     var back = (txtarea.value).substring(strPos,txtarea.value.length);
     txtarea.value=front+text+back;
-    strPos = strPos + text.length - 1;
+    strPos = strPos + text.length - backup;
     if (br == "ie") {
         txtarea.focus();
         var range = document.selection.createRange();
@@ -350,64 +323,69 @@ function insertAtCaretBackup(areaId,text) {
 </script>
 
 </head>
+'''
 
+buttons = '''
+<input type="button" value="+" onclick="insertAtCaret('commands','+',0);" />
+<input type="button" value="-" onclick="insertAtCaret('commands','-',0);" />
+<input type="button" value="*" onclick="insertAtCaret('commands',' * ',0);" />
+<input type="button" value="/" onclick="insertAtCaret('commands',' / ',0);" />
+<input type="button" value="^" onclick="insertAtCaret('commands','^',0);" />
+<input type="button" value="()" onclick="insertAtCaret('commands','()', 1);" />
+<input type="button" value="=" onclick="insertAtCaret('commands',' = ', 0);" />
+'''
+
+template = '''<html>
+%(head)s
 <body>
-<table><tr><td><h1> PQCalc</h1></td><td>
-<h3> : a scientific calculator that keeps track of units and significant figures of physical quantities</h3>
-</td></tr></table>
-
+<table>
+    <tr><td><h1> PQCalc</h1></td><td>
+    <h3> : a scientific calculator that keeps track of units and significant figures of physical quantities</h3>
+    </td></tr></table>
 <table width=100%% cellspacing="2" cellpadding="10">
-<tr>
+    <tr>
+        <td width=50%% valign="top" style="border-width:6;border-color:#1132FF;border-style:ridge">
+            <h2>What's next?</h2>
+            %(selectors)s
+            %(buttons)s
+            <form enctype="multipart/form-data" action="." method="post">
+            <textarea rows="6" cols="30" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
+              autocomplete="off" spellcheck="false" style="font-weight: bold; font-size: 12pt;"
+              >%(prefill)s</textarea><p><input name="sub" value="calculate" type="submit">
+            <input type="submit" name = "sub" value="start over" />
+            <input type="submit" name = "sub" value="printable view" /> </p>
+            <input type="hidden" name="memory" value = "%(memory)s"/>
+            <input type="hidden" name="logbook" value = "%(logbook)s"/>
+            </td>
+        <td  valign="top" style="border-width:6;border-color:#FFBD32;border-style:ridge">
+            <h2> Known quantities </h2>
+            <div style="height:150px;width:280px;overflow:auto;">
+            %(known)s
+            </div>
+            </td>
+        </tr>
+    <tr><td colspan = 2 valign="top" style="width:100%%;border-width:6;border-color:#BBFF32;border-style:ridge">
+        <h2> Calculation log </h2>
+        <script type="text/javascript">
+            function scrollDiv()
+            {
+            var el;
+            if ((el = document.getElementById('log'))
+            && ('undefined' != typeof el.scrollTop))
+            {
+            el.scrollTop = 0;
+            el.scrollTop = 5000;
+            }
+            }
 
-<td width=50%% valign="top" style="border-width:6;border-color:#1132FF;border-style:ridge">
-<h2>What's next?</h2>
-%(extra)s
-<input type="button" value="+" onclick="insertAtCaret('commands','+');" />
-<input type="button" value="-" onclick="insertAtCaret('commands','-');" />
-<input type="button" value="*" onclick="insertAtCaret('commands',' * ');" />
-<input type="button" value="/" onclick="insertAtCaret('commands',' / ');" />
-<input type="button" value="^" onclick="insertAtCaret('commands','^');" />
-<input type="button" value="()" onclick="insertAtCaretBackup('commands','()');" />
-<input type="button" value="=" onclick="insertAtCaret('commands',' = ');" />
+            window.onload = scrollDiv;
 
-<form enctype="multipart/form-data" action="." method="post">
-<textarea rows="6" cols="30" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off" autocomplete="off" spellcheck="false" style="font-weight: bold; font-size: 12pt;">
-%(prefill)s</textarea><p><input name="sub" value="calculate" type="submit">
-
-<input type="submit" name = "sub" value="start over" />
-<input type="submit" name = "sub" value="printable view" /> </p>
-<input type="hidden" name="memory" value = "%(memory)s"/>
-<input type="hidden" name="logbook" value = "%(logbook)s"/>
-</td>
-<td  valign="top" style="border-width:6;border-color:#FFBD32;border-style:ridge">
-<h2> Known quantities </h2>
-<div style="height:150px;width:280px;overflow:auto;">
-%(known)s
-</div>
-</td>
-
-<tr><td colspan = 2 valign="top" style="width:100%%;border-width:6;border-color:#BBFF32;border-style:ridge">
-<h2> Calculation log </h2>
-<script type="text/javascript">
-function scrollDiv()
-{
-var el;
-if ((el = document.getElementById('log'))
-&& ('undefined' != typeof el.scrollTop))
-{
-el.scrollTop = 0;
-el.scrollTop = 5000;
-}
-}
-
-window.onload = scrollDiv;
-
-</script>
-<div id="log" style="width=100%%;overflow:auto;">
-%(output)s
-</div>
-</td>
-</tr>
+            </script>
+        <div id="log" style="width=100%%;overflow:auto;">
+        %(output)s
+        </div>
+        </td>
+    </tr>
 </table>
 
 </body>
@@ -439,159 +417,37 @@ window.onload = scrollDiv;
 </tr>
 '''
 
+
 templateipod = '''<html>
-<head>
-<meta name="format-detection" content="telephone=no">
-<meta name="viewport" content="width=device-width, initial-scale=0.95, maximum-scale=1, user-scalable=yes">
-
-<script type="text/javascript"
-  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full">
-</script>
-
-<script type="text/javascript">
-<!--
-
-function insertAtCaret(areaId,text) {
-    var txtarea = document.getElementById(areaId);
-    var scrollPos = txtarea.scrollTop;
-    var strPos = 0;
-    var br = ((txtarea.selectionStart || txtarea.selectionStart == '0') ?
-        "ff" : (document.selection ? "ie" : false ) );
-    if (br == "ie") {
-        txtarea.focus();
-        var range = document.selection.createRange();
-        range.moveStart ('character', -txtarea.value.length);
-        strPos = range.text.length;
-    }
-    else if (br == "ff") strPos = txtarea.selectionStart;
-
-    var front = (txtarea.value).substring(0,strPos);
-    var back = (txtarea.value).substring(strPos,txtarea.value.length);
-    txtarea.value=front+text+back;
-    strPos = strPos + text.length;
-    if (br == "ie") {
-        txtarea.focus();
-        var range = document.selection.createRange();
-        range.moveStart ('character', -txtarea.value.length);
-        range.moveStart ('character', strPos);
-        range.moveEnd ('character', 0);
-        range.select();
-    }
-    else if (br == "ff") {
-        txtarea.selectionStart = strPos;
-        txtarea.selectionEnd = strPos;
-        txtarea.focus();
-    }
-    txtarea.scrollTop = scrollPos;
-}
-</script>
-<script type="text/javascript">
-<!--
-
-function insertAtCaretBackup(areaId,text) {
-    var txtarea = document.getElementById(areaId);
-    var scrollPos = txtarea.scrollTop;
-    var strPos = 0;
-    var br = ((txtarea.selectionStart || txtarea.selectionStart == '0') ?
-        "ff" : (document.selection ? "ie" : false ) );
-    if (br == "ie") {
-        txtarea.focus();
-        var range = document.selection.createRange();
-        range.moveStart ('character', -txtarea.value.length);
-        strPos = range.text.length;
-    }
-    else if (br == "ff") strPos = txtarea.selectionStart;
-
-    var front = (txtarea.value).substring(0,strPos);
-    var back = (txtarea.value).substring(strPos,txtarea.value.length);
-    txtarea.value=front+text+back;
-    strPos = strPos + text.length - 1;
-    if (br == "ie") {
-        txtarea.focus();
-        var range = document.selection.createRange();
-        range.moveStart ('character', -txtarea.value.length);
-        range.moveStart ('character', strPos);
-        range.moveEnd ('character', 0);
-        range.select();
-    }
-    else if (br == "ff") {
-        txtarea.selectionStart = strPos;
-        txtarea.selectionEnd = strPos;
-        txtarea.focus();
-    }
-    txtarea.scrollTop = scrollPos;
-}
-</script>
-
-</head>
-
+%(head)s
 <body>
-<h1> PQCalc</h1>
+<h1> PQCalc ipod</h1>
 <table cellspacing="2" cellpadding="10">
-
-%(output)s
-
-<tr><td valign="top" style="border-width:6;border-color:#1132FF;border-style:ridge">
-<h2>What's next?</h2>
-%(extra)s <br>
-<input type="button" value="+" onclick="insertAtCaret('commands','+');" />
-<input type="button" value="-" onclick="insertAtCaret('commands','-');" />
-<input type="button" value="*" onclick="insertAtCaret('commands',' * ');" />
-<input type="button" value="/" onclick="insertAtCaret('commands',' / ');" />
-<input type="button" value="^" onclick="insertAtCaret('commands','^');" />
-<input type="button" value="()" onclick="insertAtCaretBackup('commands','( )');" />
-<input type="button" value="=" onclick="insertAtCaret('commands',' = ');" />
-
-<form enctype="multipart/form-data" action="." novalidate method="post">
-<input id="commands" name="commands" size="35" %(keyboard)s  type="email" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
-tyle="font-weight: bold; font-size: 12pt;">%(prefill)s</textarea><p><input name="sub" value="calculate" type="submit">
-
-<input type="submit" name = "sub" value="start over" />
-<input type="submit" name = "sub" value="printable view" /> </p>
-<input type="hidden" name="memory" value = "%(memory)s"/>
-<input type="hidden" name="logbook" value = "%(logbook)s"/>
-</td>
-</tr>
-
-<tr>
-<td  valign="top" style="border-width:6;border-color:#FFBD32;border-style:ridge">
-<h2> Known quantities </h2>
-<div style="overflow:auto;">
-%(known)s
-</div>
-</td>
-</tr>
-
-
-</table>
-
+    %(output)s
+    <tr><td valign="top" style="border-width:6;border-color:#1132FF;border-style:ridge">
+        <h2>What's next?</h2>
+        %(selectors)s <br>
+        %(buttons)s
+        <form enctype="multipart/form-data" action="." novalidate method="post">
+        <input id="commands" name="commands" size="35" %(keyboard)s  type="email" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+        tyle="font-weight: bold; font-size: 12pt;">%(prefill)s</textarea><p><input name="sub" value="calculate" type="submit">
+        <input type="submit" name = "sub" value="start over" />
+        <input type="submit" name = "sub" value="printable view" /> </p>
+        <input type="hidden" name="memory" value = "%(memory)s"/>
+        <input type="hidden" name="logbook" value = "%(logbook)s"/>
+        </td></tr>
+    <tr><td  valign="top" style="border-width:6;border-color:#FFBD32;border-style:ridge">
+        <h2> Known quantities </h2>
+        <div style="overflow:auto;">
+        %(known)s
+        </div>
+        </td></tr>
+    </table>
 </body>
 </html>
 '''
 
-templatemobile = '''<html>
-<body>
-<h1> PQCalc</h1>
-<h2> Known quantities </h2>
-%(known)s
-
-<form enctype="multipart/form-data" action="." method="post">
-<h2> Input</h2><TEXTAREA ROWS=4 NAME="commands"></TEXTAREA>
-<p><input type="submit" name = "sub" value="calculate" />
-<input type="submit" name = "sub" value="start over" />
-<input type="submit" name = "sub" value="printable view" /> </p>
-<input type="hidden" name="memory" value = "%(memory)s"/>
-<input type="hidden" name="mobile" value = ""/>
-<input type="hidden" name="logbook" value = "%(logbook)s"/>
-
-<h2> Details from the previous calculation </h2>
-<PRE>%(output)s</PRE>
-</td>
-</body>
-</html>
-'''
-
-printableview = '''<html>
+printable_view = '''<html>
 <body>Calculation done with PQCalc, the physical quantity calculator<br>
 that knows about quantities, units and significant figures.<br><br>
 by Karsten Theis, Chemical and Physical Sciences, Westfield State University<br>

@@ -1,3 +1,4 @@
+# -*- coding: latin-1 -*-
 """
 Module to tie the quantities, calculator, and form modules together into an online calculator.
 
@@ -60,8 +61,8 @@ class index:
         web.header('Content-Type', 'text/html; charset=utf-8', unique=True)
         browser = web.ctx.env['HTTP_USER_AGENT'].lower()
         mobile = ("ipad" in browser or "iphone" in browser or "nexus" in browser)
-        if "iphone" in browser:
-            mobile = "ipud"
+        if "ipod" in browser or "iphone" in browser or "android" in browser:
+            mobile = "ipod"
         try:
             state = web.input()
             if state['sub'] == "start over":

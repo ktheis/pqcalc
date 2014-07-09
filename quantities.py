@@ -1,3 +1,4 @@
+# -*- coding: latin-1 -*-
 """
 
 Classes and functions to do arithmetic with physical quantities.
@@ -183,15 +184,22 @@ class Q(object):
         units = tuple([x[0] + x[1] for x in zip(self.units, other.units)])
         number = self.number * other.number
         sigfig = min(self.sigfig, other.sigfig) + 1
+        if other.name in unitquant and other.__dict__ == unitquant[other.name].__dict__:
+            sigfig = self.sigfig
         name = "%s * %s"
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, sigfig, prefu, provenance)
 
     def __truediv__(self, other):
         units = tuple([x[0] - x[1] for x in zip(self.units, other.units)])
-        number = self.number / other.number
+        try:
+            number = self.number / other.number
+        except ZeroDivisionError:
+            raise_QuantError("denominator is zero", "%s / %s", (self, other))
         name = "%s / %s"
         sigfig = min(self.sigfig, other.sigfig) + 1
+        if other.name in unitquant and other.__dict__ == unitquant[other.name].__dict__:
+            sigfig = self.sigfig
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, sigfig, prefu, provenance)
 
@@ -481,6 +489,8 @@ metric_prefices = dict(
     M=1e+06,
     G=1e+09,
     T=1e+12)
+
+metric_prefices['μ']= 1e-06
 
 unitquant = {}
 for unit in known_units:
