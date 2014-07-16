@@ -66,10 +66,10 @@ class Q(object):
       number(float): The number part of the quantity
       units(Units): The base units of the quantity, see Units class
       name(str): The name of the quantity
-      sigfig(int) The number of significant figures. 12 refers to an exact integer
+      sigfig(int) The number of significant figures. 20 refers to an exact integer
       prefu(list(str)): the preferred units for the quantity, given as str in unitquant
       provenance: quantities from which it was derived
-      
+
     Examples:
       Q(2) is the dimensionless number 2
       Q("kg") is the quantity 1 kg
@@ -77,7 +77,7 @@ class Q(object):
 
     """
 
-    def __init__(self, number=0.0, name="", units=unity, sig=12, prefu=[], provenance=None):
+    def __init__(self, number=0.0, name="", units=unity, sig=20, prefu=[], provenance=None):
         """
 
         """
@@ -109,18 +109,7 @@ class Q(object):
         return "Q(%(rnumber)s, units=%(units)s, sig=%(sigfig)d)" % self.__dict__
 
     def __str__(self):
-        number, units = unit_string(self.number, self.units, self.prefu)
-        nstr = numberstring(number, self.sigfig)
-        if units.startswith("$"):
-            return "$%s%s" % (nstr, units[1:])
-        return "%s%s" % (nstr, units)
-
-    def math_value(self):
-        number, units = unit_string(self.number, self.units, self.prefu, math=True)
-        nstr = numberstring(number, self.sigfig, math=True)
-        if units.startswith("$"):
-            return "$%s %s" % (nstr, units[1:])
-        return "%s %s" % (nstr, units)
+        return ascii_qvalue(self)
 
     def setdepth(self):
         if not hasattr(self, "depth"):
@@ -130,55 +119,29 @@ class Q(object):
                 self.depth = 1 + max(child.setdepth() for child in self.provenance)
         return self.depth
 
-    def intermediate_steps(self, level, math=False):
+    def steps(self, level, writer, subs=None):
+        if level < 0 and not self.provenance:
+            return writer(self, showvalue=False)
         if not level or level > self.depth:
-            if math:
-                return self.math_value()
-            return str(self)
-        name = self.name[:]
+            return writer(self, guard=0 if level <= 1 else 1)
         children = []
+        name = self.name
+        if subs and name in subs:
+            name = subs[name]
         for index, q in enumerate(self.provenance):
-            child = q.intermediate_steps(level, math=math)
+            child = q.steps(level, writer, subs)
             if q.provenance and level <= q.depth:
                 if opprio[name] > opprio[q.name] and opprio[name] and opprio[q.name]:
                     child = "(" + child + ")"
-            if "/" in name:
-                ''' and ("/" in child or (index==1 and q.units != unity) or (
-                                       math and (q.units != unity or "*" in child) and index==0)):'''
+            if "/" in name and ("/" in child or (index==1 and level >= 0 and q.units != unity)):
                 child = "(" + child + ")"
             elif name.startswith("-") and child.startswith("-"):
                 child = "(" + child + ")"
             if "^" in name and q.units != unity:
                 child = "(" + child + ")"
             children.append(child)
-        if "/" in name and math:
-            if morethantwodiv(children[0]):
-                children[0] = "(" + children[0] + ")"
         return name % tuple(children)
 
-    def task(self, math=False):
-        name = self.name[:]
-        if not self.provenance:
-            if not name:
-                if math:
-                    return self.math_value()
-                return str(self)
-            return math_name(name)
-        children = []
-        for index, q in enumerate(self.provenance):
-            child = q.task(math=math)
-            if q.provenance:  # child has children
-                if opprio[name] > opprio[q.name] and opprio[name] and opprio[q.name]:
-                    child = "(" + child + ")"
-            if "/" in name and ("/" in child or (math and (q.units != unity or "*" in child) and index == 0)):
-                child = "(" + child + ")"
-            elif "^" in name and q.units != unity:
-                child = "(" + child + ")"
-            children.append(child)
-        if "/" in name and math:
-            if morethantwodiv(children[0]):
-                children[0] = "(" + children[0] + ")"
-        return self.name % tuple(children)
 
     def __mul__(self, other):
         units = tuple([x[0] + x[1] for x in zip(self.units, other.units)])
@@ -202,6 +165,8 @@ class Q(object):
             sigfig = self.sigfig
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, sigfig, prefu, provenance)
+
+    def __div__(self, other): return self.__truediv__(other)
 
     def __neg__(self):
         return Q(-self.number, "-%s", self.units, self.sigfig, self.prefu, (self,))
@@ -253,13 +218,68 @@ class Q(object):
         return Q(number, name, units, sig, self.prefu, (self, other))
 
 
+def ascii_units(list1):
+    list2 = [i[0] for i in list1 if i[1] == 1]
+    list2.extend(["%s^%s" % i for i in list1 if i[1] > 1])
+    return " ".join(list2)
+
+def latex_units(list1):
+    list2 = ["\\rm{%s}" % i[0] for i in list1 if i[1] == 1]
+    list2.extend(["\\rm{%s}^{%s}" % i for i in list1 if i[1] > 1])
+    return "\\ ".join(list2)
+
+
+def ascii_qvalue (q, guard=0):
+    """Formats quantities as number times a fraction of units, all with positive exponents"""
+    value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
+    numbertext = ascii_number(value, q.sigfig + guard)
+    if len(neglist) == 1 and neglist[0][1] == 1:
+        negtext = "/" + neglist[0][0]
+    elif neglist:
+        negtext = "/(%s)" % ascii_units(neglist)
+    else:
+        negtext = ""
+    if not poslist:
+        if not neglist:
+            return numbertext
+        return numbertext + " 1" + negtext
+    return numbertext + " " +  ascii_units(poslist) + negtext
+
+
+def latex_qvalue (q, guard=0):
+    value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
+    numbertext = latex_number(ascii_number(value, q.sigfig + guard))
+    if neglist:
+        negtext = "\\frac{%%s}{%s}" % latex_units(neglist)
+    else:
+        negtext = "%s"
+    if not poslist:
+        if not neglist:
+            return numbertext
+        return numbertext + negtext % "1"
+    return numbertext + "\\  " + negtext % latex_units(poslist)
+
+
+def ascii_writer(q, showvalue=True, guard=0):
+    if not showvalue and q.name:
+        return q.name
+    return ascii_qvalue(q, guard)
+
+
+def latex_writer(q, showvalue=True, guard=0):
+    if not showvalue and q.name:
+        return latex_name(q.name)
+    #  return repr(q)
+    return latex_qvalue(q, guard)
+
+
 def try_all_derived(SIunits, derived):
     """Score the benefits of replacing SI units by any of the preferred derived units.
 
     Yields: A tuple(score, derived unit, exponent)
 
     There is a reward of 2 for each SIunit dropped, and a penalty of 3 for adding a derived unit.
-    E.g. going from m^2 to L/m receives a score of -1, but from m^3 to L a score of +3. 
+    E.g. going from m^2 to L/m receives a score of -1, but from m^3 to L a score of +3.
     """
     for d in derived:
         for sign in [-1, 1]:  # 1 means in numerator, -1 in denominator
@@ -270,13 +290,14 @@ def try_all_derived(SIunits, derived):
                 improvement += 2 * (abs(old) - abs(old - sign * used_in_derived))
             yield (improvement, d, sign)
 
-
-def unit_string(value, units, prefu={'M', 'L', 'J', 'C', 'V', 'N', 'W', 'Pa'}, math=False):
+def unit_string(value, units, prefu={'M', 'L', 'J', 'C', 'V', 'N', 'W', 'Pa'}):
     """Determine the most compact set of units for a quantity given in SI units.
 
     Returns: (the number(float) and the units(str)) of the quantity
 
     """
+    if units == unity:
+        return value, "", ""
     SIunits = list(units)
     derived = dict((pu, 0) for pu in prefu if sum(abs(t) for t in unitquant[pu].units) > 1)
     while (1 and derived):
@@ -297,60 +318,41 @@ def unit_string(value, units, prefu={'M', 'L', 'J', 'C', 'V', 'N', 'W', 'Pa'}, m
                     value /= unitquant[pu].number ** allunits[pu]
     for u, d in zip(SIunit_symbols, SIunits):
         allunits[u] = d
-    return value, pretty_print(allunits.items(), math)
-
-
-def pretty_print(zippy, math=False):
-    """Formats units as a fraction of units, all with positive exponents"""
-
-    sep = "\\ " if math else " "
-    template = "%s^%d" if not math else "text{%s}^%d"
-    postext = [template % z for z in zippy if z[1] > 0]
-    negtext = [template % z for z in zippy if z[1] < 0]
-    if len(negtext) == 1 and negtext[0].endswith("^-1"):
-        negtext = "/" + negtext[0][:-3]
-    elif negtext:
-        negtext = "/(%s)" % sep.join(negtext).replace("-", "").replace("^1", "")
-    else:
-        negtext = ""
-    if math and len(postext) > 0 and negtext:
-        postext = "(" + sep.join(postext).replace("^1", "") + ")"
-    else:
-        postext = sep.join(postext).replace("^1", "")
-    if not postext:
-        if not negtext:
-            return ""
-        if math:
-            return (" 1" + negtext + "").replace("ohm}", "}Omega")
-        else:
-            return " 1" + negtext + ""
-    if math:
-        return (sep + postext + negtext).replace("ohm}", "}Omega")
-    return sep + postext + negtext
+    poslist = [(u,exp) for u, exp in allunits.items() if exp > 0]
+    neglist = [(u,-exp) for u, exp in allunits.items() if exp < 0]
+    return value, poslist, neglist
 
 
 def mostsig(number, ope=1.00000000001): return int(floor(math_log10(abs(number) * ope)))
 
 
-def numberstring(number, sigfig, math=False, delta=0.0000000001):
+def latex_number(ascii):
+    if "e" in ascii:
+        return ascii.replace("e", r"\times 10^{") + "}"
+    if "/" in ascii:
+        n, d = ascii.split("/")
+        return "\\frac{%s}{%s}" % (n[1:], d[:-1])
+    return ascii
+
+from fractions import Fraction
+
+def ascii_number(number, sigfig, delta=0.0000000001):
     """Formats a number with given significant figures as a string"""
 
     if number == 0.0 or number == 0:
         return "0"
     least = mostsig(number) - sigfig + 1
-    if sigfig == 12 and int(number) and number - (int(number)) < delta:
-        return "%d" % int(number)
+    if sigfig >= 20:
+        if int(number) and number - (int(number)) < delta:
+            return "%d" % int(number)
+        a = Fraction(number).limit_denominator()
+        return "(%d / %d)" % (a.numerator,a.denominator)
     if least < 0 and least + sigfig > -2:
         return "%.*f" % (-least, number)
     if not least:
-        if math:
-            return "text{%.0f.}" % number
         return "%.0f." % number
     if sigfig:
-        if math:
-            return ("%.*e" % (sigfig - 1, number)).replace("e", "xx10^(").replace("^(+0", "^(").replace("^(-0",
-                                                                                                        "^(-") + ")"
-        return "%.*e" % (sigfig - 1, number)
+        return ("%.*e" % (sigfig - 1, number)).replace("^+0", "^").replace("^-0", "^-")
     return "%.0f" % number
 
 
@@ -362,7 +364,7 @@ def number2quantity(text):
          4.513   => sigfig = 4
          0.037   => sigfig = 2
          1000.   => sigfig = 4
-         50000   => sigfig = 12 (NOT 1 or 5)     
+         50000   => sigfig = 20 (NOT 1 or 5)
     """
     text = text.strip()
     f = float(text)
@@ -381,30 +383,30 @@ def number2quantity(text):
     else:
         sig = len(text.strip("0"))
     if not dot:
-        sig = 12
+        sig = 20
     return Q(f, "", sig=sig)
 
 
-def math_name(name):
+def latex_name(name):
     mathname = []
     parts = name.split("_")
     if len(parts[0]) > 1:
         try:
             i = int(parts[0][1:])
-            mathname.append("%s_%d" % (parts[0][0], i))
+            mathname.append("%s_{%d}" % (parts[0][0], i))
         except ValueError:
-            mathname.append("bb{text{%s}}" % parts[0])
+            mathname.append("\\rm{%s}" % parts[0])
     else:
         mathname.append(parts[0])
     if len(parts) > 1 and parts[1]:
         mathname.append("_")
         if len(parts[1]) > 1:
-            mathname.append("text{%s}" % parts[1])
+            mathname.append("\\rm{%s}" % parts[1])
         else:
             mathname.append(parts[1])
         if len(parts) > 2:
-            mathname.append("bb{text{%s}}" % parts[2])
-    return "".join(mathname).replace("Delta", "&Delta;").replace("naught", "&deg;")
+            mathname.append("\\rm{%s}" % parts[2])
+    return "".join(mathname).replace("Delta", "\Delta ").replace("naught", "\deg ")
 
 
 def inherit_ternary(q1, q2, q3):
@@ -437,19 +439,6 @@ opprio["%s / %s"] = 4
 opprio["%s + %s"] = 2
 opprio["-%s"] = 2
 opprio["%s - %s"] = 2
-
-
-def morethantwodiv(string):
-    nrdiv = 0
-    parenth = 0
-    for c in string:
-        if c == "(":
-            parenth += 1
-        elif c == ")":
-            parenth -= 1
-        elif not parenth and c == "/":
-            nrdiv += 1
-    return nrdiv >= 2
 
 
 known_units = dict(

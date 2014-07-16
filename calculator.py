@@ -7,13 +7,13 @@ calculating their values and showing the steps, and finally storing the quantiti
 used for further calculations.
 
 This is an arithmetic calculator rather than an algebra system (i.e. unknowns are not allowed and will lead to
-error messages). Output is either in HTML or in MathML via Asciimath.
+error messages). Output is either in HTML or in MathML via LaTeX.
 """
 
 from __future__ import division
 
 import quantities
-from quantities import Q, Units, QuantError, math_name
+from quantities import Q, Units, QuantError, latex_name
 
 
 class CalcError(ArithmeticError): pass
@@ -25,16 +25,16 @@ except:
     from sre import Scanner
 
 
-def identifier(scanner, token): return ["I", token.strip()]
+def identifier(scanner, token): return "I", token.strip()
 
 
-def operator(scanner, token): return ["O", token.strip()]
+def operator(scanner, token): return "O", token.strip()
 
 
-def float2(scanner, token): return ["N", token.strip()]
+def float2(scanner, token): return "N", token.strip()
 
 
-def comment(scanner, token): return ["C", token.strip()]
+def comment(scanner, token): return "C", token.strip()
 
 
 scanner = Scanner([
@@ -56,13 +56,13 @@ def scan(t):
             parentheses += ttext.count("(") - ttext.count(")")
     if parentheses:
         raise CalcError("Parentheses don't match: %s" % repr(tokens))
-    tokens.append(["Z", ""])
+    tokens.append(("Z", ""))
     for i, (ttype, ttext) in enumerate(tokens):
         if ttype == "I":
             if ttext in quantities.unitquant:
-                tokens[i] = ("U", ttext)
+                tokens[i] = "U", ttext
             elif ttext in quantities.functions:
-                tokens[i] = ("F", ttext)
+                tokens[i] = "F", ttext
     return tokens
 
 
@@ -87,8 +87,8 @@ def make_paired_tokens(raw_tokens):
     """
     Process raw tokens into paired tokens containing item ID (N, U, I, Z), pre-operator and item text.
 
-    This is the first step in turning the input text into a Python expression.
-    Add implicit '*' operators, pick up units(I -> U) and deal with comments.
+    This is the second step in turning the input text into a Python expression.
+    Add implicit '*' operators and deal with comments.
     """
     tokens = []
     tokenit = (x for x in raw_tokens)
@@ -103,7 +103,7 @@ def make_paired_tokens(raw_tokens):
                     break
             else:
                 operator = fixoperator(operator, tokens)
-            if hasattr(tokenit, "__next__"):
+            if hasattr(tokenit, "__next__"):    # python 2.7 vs 3.1
                 ttype, ttext = tokenit.__next__()
             else:
                 ttype, ttext = tokenit.next()
@@ -117,24 +117,30 @@ def make_paired_tokens(raw_tokens):
 
 
 def interpret_N_U_cluster(quant, orig_paired, result):
+    '''treat number and sequence of units as a single item enclosed in implied parenthesis, and evaluate as Q
+
+    Has to figure out where quantity ends, e.g. 8.314 J/(K mol) * 273 K or 5 mol/L / 2 mol/L
+                                                ***************   +++++    *******   +++++++
+    '''
+
     paired = orig_paired[:]
-    start = None
+    notyetclosed = None
     openp = 0
     for i, (ttype, op, ttext) in enumerate(paired):
-        if not (paired[i][0] == "U" or (paired[i][0] == "N" and "**" in paired[i][1])):
-            break
         o = op.count("(")
         c = op.count(")")
         if o:
             openp += o
-            if not start:
-                start = i
+            if not notyetclosed:
+                notyetclosed = i  # start of new parentheses that might not close
         if c:
             openp -= c
             if openp < 0:
                 break
-            start = None
-    end = start if start else i
+            notyetclosed = None
+        if not (paired[i][0] == "U" or (paired[i][0] == "N" and "**" in paired[i][1])):
+            break
+    end = notyetclosed if notyetclosed else i  # take up to open parenthesis that wasn't closed, or to end of N-U cluster
     for j in range(end):
         quant.append(paired[j][1] + "Q('%s')" % paired[j][2])
     quantstr = "".join(quant)
@@ -151,10 +157,12 @@ def interpret_N_U_cluster(quant, orig_paired, result):
             quantstr = quantstr + paired[end][1][:i + 1]
             paired[end][1] = paired[end][1][i + 1:]
         q = eval(quantstr)
-    except QuantError:
-        raise
-    except:
-        return quant[0], orig_paired
+    except QuantError as err:
+        outp = []
+        explain_failure(quantstr, err, outp, "")
+        raise CalcError("<br>".join(outp[1:]))
+    '''except:
+        return quant[0], orig_paired'''
     q.name = ""
     q.provenance = []
     return repr(q), paired[end:]
@@ -174,7 +182,7 @@ def create_Python_expression(paired_tokens, symbols):
                 if ttext in symbols:
                     result.append(repr(symbols[ttext]))
                 else:
-                    raise ValueError("unknown symbol %s encountered" % ttext)
+                    raise CalcError("unknown symbol %s encountered" % ttext)
             continue
         quant = ["Q('%s')" % ttext]
         if ttype == "N" and paired_tokens[0][0] != "U":
@@ -235,23 +243,18 @@ def calc_without_assignment(a, output, symbols, mob):
         quant, units = a.split(" using ")
         prefu = units.split()
         q = symbols[quant.strip()]
+        outp = []
+        show_work(q, quant, outp, mob != "ipud")
+        output.append(outp[-1])
         q.prefu = prefu
-        if mob == "ipud":
-            output.append("%s = %s<br>" % (str(quant), q.intermediate_steps(0, math=False)))
-        else:
-            output.append("`%s = %s`" % (math_name(quant.strip()), q.intermediate_steps(0, math=(mob != "ipud"))))
+        show_work(q, quant, outp, mob != "ipud")
+        output.append(outp[-1])
     elif " in " in a:
         quant, units = a.split(" in ")
         tmp = interpret(units, symbols, output, mob)
-        task = tmp.task(math=(mob != "ipud"))
         qq = symbols[quant.strip()] / tmp
-        number3, units2 = quantities.unit_string(qq.number, qq.units, math=(mob != "ipud"))
-        nstr = quantities.numberstring(number3, qq.sigfig, math=True)
-        if mob == "ipud":
-            output.append("%s = %s%s %s<br>" % (str(quant), nstr, units2, units))
-        else:
-            output.append("`%s = %s%s` %s" %
-                          (math_name(quant.strip()), nstr, units2, units))
+        addon = quantities.latex_name(units) if mob == "ipud" else units
+        show_work(qq, quant, output, math=(mob != "ipud"), addon=addon)
     else:
         return False
     output.append("<hr>")
@@ -282,27 +285,29 @@ def figure_out_name(a, output, logput):
     return sym, expression
 
 
-def show_work(result0, sym, expression, output, logput, math=True):
-    start = result0.task(math=math)
-    if str(result0) != expression.strip():
-        logput.append("  = %s" % str(result0))
-    d = result0.setdepth()
+def show_work(result, sym, output, math, error=False, addon = ""):
+    writer = quantities.latex_writer if math else quantities.ascii_writer
+    subs = {"%s / %s":"\\frac{%s}{%s}", "%s * %s": "%s \\cdot %s", "%s ^ %s": "%s^{%s}"} if math else None
+    d = result.setdepth()
     if math:
-        template1 = "`%s = %s`<br><br>"
-        template2 = "`\\ \\ \\ =%s`<br><br>"
+        template1 = "\(%s = %s%s\)<br><br>"
+        template2 = "\(\\ \\ \\ =%s%s\)<br><br>"
     else:
-        template1 = "%s = %s<br>" if d <= 0 else "%s = <br>&nbsp;&nbsp;&nbsp;= %s<br>"
-        template2 = "&nbsp;&nbsp;&nbsp;= %s<br>"
-    name = math_name(sym) if math else str(sym)
-    output.append(template1 % (name, start))
-    for dd in range(1, d + 2):
-        interm = result0.intermediate_steps(dd, math=math)
-        if interm != start:
-            output.append(template2 % interm)
-    result0.provenance = []
+        template1 = "%s = %s%s<br>" if d <= 0 else "%s = <br>&nbsp;&nbsp;&nbsp;= %s%s<br>"
+        template2 = "&nbsp;&nbsp;&nbsp;= %s%s<br>"
+    start = result.steps(-1, writer, subs)  # task
+    name = latex_name(sym) if math else str(sym)
+    output.append(template1 % (name, start, addon))
+    for dd in range(1, d + 1):
+        output.append(template2 % (result.steps(dd, writer, subs), addon))  # intermediate steps
+    result_str = result.steps(0, writer, subs)  # result
+    if result_str != start and not error:
+        #print (result, start, math)
+        output.append(template2 % (result_str, addon))
 
 
 def register_result(result0, sym, symbols, symbollist, output):
+    result0.provenance = []
     result0.name = sym[:]
     if sym in symbols:
         output.append('<div style="color: green;">Warning: Updated value of %s</div><br>' % sym)
@@ -313,20 +318,11 @@ def register_result(result0, sym, symbols, symbollist, output):
 
 def explain_failure(a, error, output, mob):
     output.append(a)
-    duh = error.args[0]
-    output.append('<br><br><div style="color: red;">Calculation failed: %s</div><br><br>' % duh[0])
-    if not duh[1]:
-        output.append('<hr>')
-        return
-    d = duh[1].setdepth()
-    start = duh[1].task(math=(mob != "ipud"))
-    output.append("`text{problem} = %s`<br><br>" % start)
-    for dd in range(1, d + 1):
-        inter = duh[1].intermediate_steps(dd, math=(mob != "ipud"))
-        if inter != start:
-            output.append("`\\ \\ \\ = %s`<br><br>" % inter)
+    problem = error.args[0]
+    output.append('<br><br><div style="color: red;">Calculation failed: %s</div><br><br>' % problem[0])
+    if problem[1]:
+        show_work(problem[1], "problem", output, math=(mob != "ipud"), error=True)
     output.append("<hr>")
-    return
 
 
 def calc(oldsymbols, commands, mob):
@@ -347,15 +343,17 @@ def calc(oldsymbols, commands, mob):
                     continue
             sym, expression = figure_out_name(a, output, logput)
             result0 = interpret(expression, symbols, output, mob)
-            show_work(result0, sym, expression, output, logput, math=(mob != 'ipud'))
+            if str(result0) != expression.strip():
+                logput.append("  = %s" % str(result0))
+            show_work(result0, sym, output, math=(mob != 'ipud'))
             register_result(result0, sym, symbols, symbollist, output)
         except QuantError as err:
             output.append(err.args[0][0])
         except CalcError as err:
             output.append(err.args[0])
-        except ValueError as err:
+        '''except ValueError as err:
             output.append(err.args[0])
-        output.append("<hr>")
+        output.append("<hr>")'''
     memory = [symbols[s].__repr__() for s in symbollist]
     known = [s + " = " + symbols[s].__str__() for s in symbollist]
     # return ["fake output"], logput, memory, known, mob
@@ -373,7 +371,7 @@ if __name__ == "__main__":
         try:
             sym, expression = figure_out_name(command, output, logput)
             result0 = interpret(expression, symbols, output, mob)
-            show_work(result0, sym, expression, output, logput, mob)
+            show_work(result0, sym, output, math=True)
             register_result(result0, sym, symbols, symbollist, output)
         except CalcError as err:
             output.append(err.args[0])
