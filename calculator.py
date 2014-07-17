@@ -39,7 +39,7 @@ def comment(scanner, token): return "C", token.strip()
 
 scanner = Scanner([
     (r"(([a-zA-Zμ]\w*(\[[^]]+\])?)|(\[[^]]+\])|(\{[^}]+\})|\$)", identifier),
-    (r"((\d*\.\d+)|(\d+\.?))([Ee][+-]?\d+)?", float2),
+    (r"((\d*\.\d+)|(\d+\.?))(\(\d\d?\))?([Ee][+-]?\d+)?", float2),
     (r"[ ,()/*^+-]+", operator),
     (r"[#!].*", comment)
 ])
@@ -287,7 +287,7 @@ def figure_out_name(a, output, logput):
 
 def show_work(result, sym, output, math, error=False, addon = ""):
     writer = quantities.latex_writer if math else quantities.ascii_writer
-    subs = {"%s / %s":"\\frac{%s}{%s}", "%s * %s": "%s \\cdot %s", "%s ^ %s": "%s^{%s}"} if math else None
+    subs = {"%s / %s":"\\dfrac{%s}{%s}", "%s * %s": "%s \\cdot %s", "%s ^ %s": "%s^{%s}", "exp(%s)": "e^{%s}"} if math else None
     d = result.setdepth()
     if math:
         template1 = "\(%s = %s%s\)<br><br>"
