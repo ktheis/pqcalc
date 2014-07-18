@@ -366,7 +366,7 @@ def calc(oldsymbols, commands, mob):
     memory = [symbols[s].__repr__() for s in symbollist]
     known = [s + " = " + symbols[s].__str__() for s in symbollist]
     # return ["fake output"], logput, memory, known, mob
-    print ("logput:", logput)
+    #  print ("logput:", logput)
     return output, logput, memory, known, mob
 
 def gather_symbols(oldsymbols):

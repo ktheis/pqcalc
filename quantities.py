@@ -376,13 +376,13 @@ def ascii_number(number, sigfig, uncert=None, delta=0.0000000001):
             u = u[:2]
         u = "(" + u + ")"
     least = mostsig(number) - sigfig + 1
-    print (number, uncert, u, sigfig)
+    #  print (number, uncert, u, sigfig)
     if least < 0 and least + sigfig > -2:
         return "%.*f%s" % (-least, number, u)
     if not least:
         return "%.0f%s." % (number, u)
     if sigfig:
-        t = ("%.*e" % (sigfig - 1, number)).replace("^+0", "^").replace("^-0", "^-")
+        t = ("%.*e" % (sigfig - 1, number)).replace("e+", "e").replace("e0","e").replace("e-0", "e-")
         m,e = t.split("e")
         return "%s%se%s" % (m, u, e)
     return "%.0(?)f" % number
