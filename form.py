@@ -73,11 +73,11 @@ example = '''problem = 1.71
 a_textbook = 17.4
 
 problem = 1.87
-percent = 0.010000000
+percent = 1/100
 year = 365 * 24 hr
 input_Fertilizer = 1500. kg / year
-input_Nitrogen = input_Fertilizer * 10 percent
-wash_Nitrogen = input_Nitrogen * 15 percent
+input_Nitrogen = 10 percent * input_Fertilizer
+wash_Nitrogen = 15 percent * input_Nitrogen
 flow_stream = 1.4 m^3/min
 c[added nitrogen] = wash_Nitrogen / flow_stream
 c[added nitrogen] using mg L
@@ -448,6 +448,16 @@ templateipod = '''<html>
 '''
 
 printable_view = '''<html>
+<head>
+<meta name="format-detection" content="telephone=no">
+
+<link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
+<script type="text/javascript" src="/js/keyboard.js" charset="UTF-8"></script>
+
+<script type="text/javascript"
+  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+</head>
 <body>Calculation done with PQCalc, the physical quantity calculator<br>
 that knows about quantities, units and significant figures.<br><br>
 by Karsten Theis, Chemical and Physical Sciences, Westfield State University<br>
@@ -461,7 +471,7 @@ http://ktheis.pythonanywhere.com/ </a>
 <PRE>%s</PRE>
 
 <h2> Log of the calculation </h2>
-<PRE>%s</PRE>
+%s
 </div>
 </body>
 </html>

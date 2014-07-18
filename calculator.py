@@ -277,7 +277,7 @@ def figure_out_name(a, output, logput):
                 sym, sym, conf))
             sym = sym + "_"
         output.append("<pre>\n%s = %s</pre>" % (sym, expression))
-        logput.append("\n%s = %s" % (sym, expression))
+        #  logput.append("\n%s = %s" % (sym, expression))
     else:
         sym = "result"
         expression = a
@@ -285,7 +285,7 @@ def figure_out_name(a, output, logput):
     return sym, expression
 
 
-def show_work(result, sym, output, math, error=False, addon = ""):
+def show_work(result, sym, output, math, logput=None, error=False, addon = ""):
     writer = quantities.latex_writer if math else quantities.ascii_writer
     subs = {"%s / %s":"\\dfrac{%s}{%s}", "%s * %s": "%s \\cdot %s", "%s ^ %s": "%s^{%s}", "exp(%s)": "e^{%s}"} if math else None
     d = result.setdepth()
@@ -295,14 +295,23 @@ def show_work(result, sym, output, math, error=False, addon = ""):
     else:
         template1 = "%s = %s%s<br>" if d <= 0 else "%s = <br>&nbsp;&nbsp;&nbsp;= %s%s<br>"
         template2 = "&nbsp;&nbsp;&nbsp;= %s%s<br>"
-    start = result.steps(-1, writer, subs)  # task
+    task = result.steps(-1, writer, subs)  # task
     name = latex_name(sym) if math else str(sym)
-    output.append(template1 % (name, start, addon))
+    output.append(template1 % (name, task, addon))
+    if logput:
+        logput.append(template1 % (name, task, addon))
     for dd in range(1, d + 1):
-        output.append(template2 % (result.steps(dd, writer, subs), addon))  # intermediate steps
+        if dd == 1:
+            first = result.steps(dd, writer, subs)
+            if first != task:
+                output.append(template2 % (first, addon))
+        else:
+            output.append(template2 % (result.steps(dd, writer, subs), addon))  # intermediate steps
     result_str = result.steps(0, writer, subs)  # result
-    if result_str != start and not error:
-        #print (result, start, math)
+    if result_str != task and not error:
+        #print (result, task, math)
+        if logput:
+            logput.append(template2 % (result_str, addon))
         output.append(template2 % (result_str, addon))
 
 
@@ -327,7 +336,7 @@ def explain_failure(a, error, output, mob):
 
 def calc(oldsymbols, commands, mob):
     symbols, symbollist = load_symbols(oldsymbols)
-    logput = []
+    logput = [""]
     output = []
     commands = commands.replace('\r', '')
     commands = commands.split("\n")
@@ -343,9 +352,9 @@ def calc(oldsymbols, commands, mob):
                     continue
             sym, expression = figure_out_name(a, output, logput)
             result0 = interpret(expression, symbols, output, mob)
-            if str(result0) != expression.strip():
-                logput.append("  = %s" % str(result0))
-            show_work(result0, sym, output, math=(mob != 'ipud'))
+            '''if str(result0) != expression.strip():
+                logput.append("  = %s" % str(result0))'''
+            show_work(result0, sym, output, math=(mob != 'ipud'), logput=logput)
             register_result(result0, sym, symbols, symbollist, output)
         except QuantError as err:
             output.append(err.args[0][0])
@@ -357,8 +366,19 @@ def calc(oldsymbols, commands, mob):
     memory = [symbols[s].__repr__() for s in symbollist]
     known = [s + " = " + symbols[s].__str__() for s in symbollist]
     # return ["fake output"], logput, memory, known, mob
+    print ("logput:", logput)
     return output, logput, memory, known, mob
 
+def gather_symbols(oldsymbols):
+    allsymbols = {}
+    symbollist = []
+    if oldsymbols:
+        old = oldsymbols.split('\r\n')
+        for a in old:
+            sym = a.split("'")[1]
+            allsymbols[sym] = eval(a)
+            symbollist.append(sym)
+    return allsymbols, symbollist
 
 if __name__ == "__main__":
     mob = "ipud"

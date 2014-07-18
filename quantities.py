@@ -136,10 +136,16 @@ class Q(object):
         return self.depth
 
     def steps(self, level, writer, subs=None):
+        '''
+        :param level: -1: task, 0: value, 1..n: work
+        :param writer: either ascii or latex
+        :param subs: modify q.name for latex output
+        :return: a string describing an expression
+        '''
         if level < 0 and not self.provenance:
             return writer(self, showvalue=False)
         if not level or level > self.depth:
-            return writer(self, guard=0 if level <= 1 else 1)
+            return writer(self, guard=0 if (level <= 1 or not self.provenance) else 1)
         children = []
         name = self.name
         if subs and name in subs:
@@ -226,7 +232,7 @@ class Q(object):
         except ValueError:
             raise_QuantError("arithmetic problem", "%s ^ %s", (self, other))
         name = "%s ^ %s"
-        return Q(number, name, units, self.uncert, self.prefu, (self, other))
+        return Q(number, name, units, self.uncert/self.number * number * other.number, self.prefu, (self, other))
 
 
 def ascii_units(list1):
@@ -260,8 +266,8 @@ def ascii_qvalue (q, guard=0):
 
 def latex_qvalue (q, guard=0):
     value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
-    numbertext = latex_number(ascii_number(value, q.sigfig, q.uncert * value/q.number))
-    #  numbertext = latex_number(ascii_number(value, q.sigfig + guard))
+    #  numbertext = latex_number(ascii_number(value, q.sigfig, q.uncert * value/q.number))
+    numbertext = latex_number(ascii_number(value, q.sigfig + guard))
     if neglist:
         negtext = "\\frac{%%s}{%s}" % latex_units(neglist)
     else:
@@ -360,13 +366,15 @@ def ascii_number(number, sigfig, uncert=None, delta=0.0000000001):
         a = Fraction(number).limit_denominator()
         return "(%d / %d)" % (a.numerator,a.denominator)
 
-    u = "%.2G" % uncert if uncert else ""
+    u = "%.5G" % uncert if uncert else ""
     u = u.replace(".","").lstrip("0")
     if ("E" in u):
         u = u.split("E")[0]
     if u:
-        sigfig += len(u) - 1
-    u = "(" + u + ")"
+        if len(u) > 1:
+            sigfig += 1
+            u = u[:2]
+        u = "(" + u + ")"
     least = mostsig(number) - sigfig + 1
     print (number, uncert, u, sigfig)
     if least < 0 and least + sigfig > -2:

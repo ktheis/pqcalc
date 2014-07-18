@@ -35,7 +35,7 @@ import sys
 
 sys.path.append("/var/www")
 
-from calculator import calc
+from calculator import calc, gather_symbols
 from form import newform, printableLog
 
 
@@ -52,6 +52,7 @@ class index:
         if "ipod" in browser or "iphone" in browser or "android" in browser:
             mobile = "ipod"
         return newform("", "", "", known, "", mobile)
+
 
     def POST(self):
         """
@@ -73,14 +74,7 @@ class index:
         oldsymbols = state['memory']
         logbook = state['logbook']
         if state['sub'] == "printable view":
-            allsymbols = {}
-            symbollist = []
-            if oldsymbols:
-                old = oldsymbols.split('\r\n')
-                for a in old:
-                    sym = a.split("'")[1]
-                    allsymbols[sym] = eval(a)
-                    symbollist.append(sym)
+            allsymbols, symbollist = gather_symbols(oldsymbols)
             return printableLog(allsymbols, symbollist, logbook)
         commands = state['commands']
         outp, logp, mem, known, mobile = calc(oldsymbols, commands, mobile)
