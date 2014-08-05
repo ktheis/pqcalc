@@ -38,7 +38,7 @@ def comment(scanner, token): return "C", token.strip()
 
 
 scanner = Scanner([
-    (r"(([a-zA-Zμ]\w*(\[[^]]+\])?)|(\[[^]]+\])|(\{[^}]+\})|\$)", identifier),
+    (r"(([a-zA-Z]\w*(\[[^]]+\])?)|(\[[^]]+\])|(\{[^}]+\})|\$)", identifier),
     (r"((\d*\.\d+)|(\d+\.?))(\(\d\d?\))?([Ee][+-]?\d+)?", float2),
     (r"[ ,()/*^+-]+", operator),
     (r"[#!].*", comment)
@@ -167,6 +167,20 @@ def interpret_N_U_cluster(quant, orig_paired, result):
     q.provenance = []
     return repr(q), paired[end:]
 
+endings = {"9351", "1736", "2271", "0261", "3589", "4259", "5257", "8637", "6264", "7126"}
+
+def magic (numberstring):
+    if "e" in numberstring:
+        numberstring = numberstring.split("e")[0]
+    if "E" in numberstring:
+        numberstring = numberstring.split("E")[0]
+    if len(numberstring) < 5:
+        return False
+    dig = [int(i) for i in numberstring.replace(".", "")]
+    quer = sum(int(n) for n in dig[:-4])
+    four = "%04d" % int("".join(str((d + quer)%10) for d in dig[-4:]))
+    return four in endings
+
 
 def create_Python_expression(paired_tokens, symbols):
     result = []
@@ -185,6 +199,9 @@ def create_Python_expression(paired_tokens, symbols):
                     raise CalcError("unknown symbol %s encountered" % ttext)
             continue
         quant = ["Q('%s')" % ttext]
+        if ttype == "N" and "." in ttext:
+            if magic(ttext if "(" not in ttext else ttext.split("(")[0]) and not "__showuncert__" in symbols:
+                raise CalcError("If you always use powerful tools, your basic skills might get rusty. Do this calculation using a method other than PQCalc, please")
         if ttype == "N" and paired_tokens[0][0] != "U":
             result.append(operator)
             result.append(quant[0])
@@ -263,12 +280,22 @@ def calc_without_assignment(a, output, symbols, mob):
 
 def figure_out_name(a, output, logput):
     if "=" in a:
-        sym, expression = a.split("=", 1)
+        bracket  = 0
+        for i, c in enumerate(a):
+            if c == "=" and not bracket:
+                break
+            if c == "[":
+                bracket += 1
+            if c == "]":
+                bracket -= 1
+        sym = a[:i]
+        expression = a[i+1:]
         sym = sym.strip()
         expression = expression.strip()
         tokens, remainder = scanner.scan(sym)
         if len(tokens) != 1 or tokens[0][0] != "I":
-            raise CalcError(("Please don't use %s as a name for a quantity<br><pre>%s<pre>" %
+            if not sym.startswith("__"):
+                raise CalcError(("Please don't use %s as a name for a quantity<br><pre>%s<pre>" %
                              (sym, rules_for_symbol_name)))
         if sym in quantities.unitquant or sym in quantities.functions:
             conf = "function" if sym in quantities.functions else "unit"
@@ -285,9 +312,23 @@ def figure_out_name(a, output, logput):
     return sym, expression
 
 
-def show_work(result, sym, output, math, logput=None, error=False, addon = ""):
-    writer = quantities.latex_writer if math else quantities.ascii_writer
-    subs = {"%s / %s":"\\dfrac{%s}{%s}", "%s * %s": "%s \\cdot %s", "%s ^ %s": "%s^{%s}", "exp(%s)": "e^{%s}"} if math else None
+def show_work(result, sym, output, math, logput=None, error=False, addon = "", skipsteps = False, showuncert=False, hideunits=False):
+    if math:
+        if hideunits:
+            writer = quantities.latex_writer3
+        elif showuncert:
+            writer = quantities.latex_writer2
+        else:
+            writer = quantities.latex_writer
+    else:
+        writer = quantities.ascii_writer
+    subs = {"%s / %s":"\\dfrac{%s}{%s}",
+            "%s * %s": "%s \\cdot %s",
+            "%s ^ %s": "%s^{%s}",
+            "exp(%s)": "e^{%s}",
+            "log(%s)":"\\mathrm{log}(%s)",
+            "ln(%s)":"\\mathrm{ln}(%s)",
+            "sqrt(%s)":"\\sqrt{%s}"} if math else None
     d = result.setdepth()
     if math:
         template1 = "\(%s = %s%s\)<br><br>"
@@ -300,13 +341,14 @@ def show_work(result, sym, output, math, logput=None, error=False, addon = ""):
     output.append(template1 % (name, task, addon))
     if logput:
         logput.append(template1 % (name, task, addon))
-    for dd in range(1, d + 1):
-        if dd == 1:
-            first = result.steps(dd, writer, subs)
-            if first != task:
-                output.append(template2 % (first, addon))
-        else:
-            output.append(template2 % (result.steps(dd, writer, subs), addon))  # intermediate steps
+    if not skipsteps:
+        for dd in range(1, d + 1):
+            if dd == 1:
+                first = result.steps(dd, writer, subs)
+                if first != task:
+                    output.append(template2 % (first, addon))
+            else:
+                output.append(template2 % (result.steps(dd, writer, subs), addon))  # intermediate steps
     result_str = result.steps(0, writer, subs)  # result
     if result_str != task and not error:
         #print (result, task, math)
@@ -344,22 +386,29 @@ def calc(oldsymbols, commands, mob):
         if not a or not a.strip():
             continue
         if a.startswith("!") or a.startswith("#"):
-            output.append('<div style="color: blue;"><pre>%s</pre><hr></div>' % a[1:])
+            output.append('<hr><div style="color: blue;"><pre>%s</pre><hr></div>' % a[1:])
             continue
         try:
             if not "=" in a:
                 if calc_without_assignment(a, output, symbols, mob):
                     continue
             sym, expression = figure_out_name(a, output, logput)
+            if "__tutor__" in symbols and sym == "result" and "=" not in a:
+                raise CalcError("Your tutor says: Please come up with a name for the quantity you are calculating")
             result0 = interpret(expression, symbols, output, mob)
             '''if str(result0) != expression.strip():
                 logput.append("  = %s" % str(result0))'''
-            show_work(result0, sym, output, math=(mob != 'ipud'), logput=logput)
+            show_work(result0, sym, output, math=(mob != 'ipud'), logput=logput,
+                      skipsteps=("__skip__" in symbols),showuncert=("__showuncert__" in symbols), hideunits=("__hideunits__" in symbols))
             register_result(result0, sym, symbols, symbollist, output)
         except QuantError as err:
             output.append(err.args[0][0])
+            break
         except CalcError as err:
             output.append(err.args[0])
+            if err.args[0].startswith("If you always"):
+                output = [err.args[0]]
+            break
         '''except ValueError as err:
             output.append(err.args[0])
         output.append("<hr>")'''
@@ -391,6 +440,7 @@ if __name__ == "__main__":
         try:
             sym, expression = figure_out_name(command, output, logput)
             result0 = interpret(expression, symbols, output, mob)
+            print repr(result0), result0
             show_work(result0, sym, output, math=True)
             register_result(result0, sym, symbols, symbollist, output)
         except CalcError as err:

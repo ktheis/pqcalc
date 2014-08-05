@@ -30,10 +30,10 @@ def quant_selectors(known, mob):
     """
     choices = known.split("\n")
     if mob:
-        return "<br>".join(choices), fill_selector("quantities", choices)
+        return "<br>".join(choices), fill_selector("quantities", [term.rsplit("=",1)[0] for term in choices])
     html = ['<option value="" selected="selected" disable="disabled">Click to use for next calculation</option>']
     for term in choices:
-        sym = term.split("=")[0]
+        sym = term.rsplit("=", 1)[0]
         html.append(selectoroption % (sym, term))
     return selector % ("size = 8", 0, "".join(html)), ""
 
@@ -127,12 +127,13 @@ nuC = ratio[nuC:nuH] * nuH
 #texbook answer: C20H30
 
 ######
-
 problem = 3.103
+
 m[KO2] = 2.50 g
 m[CO2] = 4.50 g
-ratio[nKO2:nO2] = 4/3
-ratio[nCO2:nO2] = 2/3
+nu[KO2] = 4
+nu[CO2] = 2
+nu[O2] = 3
 
 #calculated from chemical formula
 M[C] = 12.0107 g/mol
@@ -146,15 +147,17 @@ M[CO2] = M[C] + 2 * M[O]
 n[KO2] = m[KO2] / M[KO2]
 n[CO2] = m[CO2] / M[CO2]
 
-n[O2 if KO2 were limiting] = n[KO2] / ratio[nKO2:nO2]
-n[O2 if CO2 were limiting] = n[CO2] / ratio[nCO2:nO2]
+n[KO2 -> lim] = n[KO2] / nu[KO2]
+n[CO2 -> lim] = n[CO2] / nu[CO2]
 
-n[O2] = minimum(n[O2 if KO2 were limiting],n[O2 if CO2 were limiting])
-V[O2] = n[O2] 8.314 J/(K mol) 298 K / 1 atm
+n[lim] = minimum(n[KO2 -> lim], n[CO2 -> lim])
+V[O2] = n[lim] nu[O2] 8.314 J/(K mol) 298 K / 1 atm
 V[O2] using L
-m[O2] = n[O2] * 2 * M[O]
+m[O2] = n[lim] nu[O2] * 2 * M[O]
 #textbook : m[O2] = 0.844 g
 ######
+
+
 
 problem = 4.111
 V_An = 100.0 mL
@@ -214,6 +217,52 @@ T = 298.0 K
 R = 8.314 J/(mol K)
 K_eq = 2.54e6
 DeltaGnaught = - R T ln(K_eq)
+
+problem = first semester
+5 + 3
+__tutor__ = 1
+6 + 8
+R_gas = 0.08205746(14) L atm K^-1 mol^-1
+R_ryd = 1.0973731568539(55)e7 m^-1
+
+problem = practice units
+__hideunits__ = 1
+R = 8.3144621(75) J/(K mol)
+T = 298.0 K
+K_eq = 2.54e6
+DeltaGnaught = - R T ln(K_eq)
+
+
+problem = second semester
+R = 8.3144621(75) J/(K mol)
+T = 298.0 K
+K_eq = 2.54e6
+DeltaGnaught = - R T ln(K_eq)
+
+problem = physical chemistry
+__showuncert__= 1
+
+# gas constant
+R =  8.3144621(75) J/(K mol)
+# Boltzmann constant
+k_B = 1.3806488(13)e-23 J/K
+# Plank constant
+h = 6.62606957(29)e-34 J s
+# Speed of light (nowadays not a measurement, but a definition)
+c0 = 299792458 m/s
+# Mathematical constant Pi to 17 digits
+Pi = 3.1415926535897932
+# Permeability in vacuum
+mu_0 = 4 N A^-2 Pi  / 10000000
+# Permittivity in vacuum
+eps_0 = 1 / (c0^2 mu_0)
+# mass of electron
+m_elec= 9.10938215(45)e-31kg
+# Elementary charge
+e = 1.60217657e-19 C
+# Rydberg constant from first principles
+R_H = m_elec e^4 / (8 h^3 eps_0^2 c0)
+
 '''
 
 examples = example.split('problem = ')
@@ -279,6 +328,9 @@ head = '''<head>
 
 <link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
 <script type="text/javascript" src="/js/keyboard.js" charset="UTF-8"></script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({ TeX: { extensions: ["mhchem.js"] }});
+</script>
 
 <script type="text/javascript"
   src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
@@ -333,6 +385,7 @@ buttons = '''
 <input type="button" value="^" onclick="insertAtCaret('commands','^',0);" />
 <input type="button" value="()" onclick="insertAtCaret('commands','()', 1);" />
 <input type="button" value="=" onclick="insertAtCaret('commands',' = ', 0);" />
+<input type="button" value="[]" onclick="insertAtCaret('commands','[]', 1);" />
 '''
 
 template = '''<html>
@@ -349,7 +402,7 @@ template = '''<html>
             %(selectors)s
             %(buttons)s
             <form enctype="multipart/form-data" action="." method="post">
-            <textarea rows="6" cols="30" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
+            <textarea rows="6" cols="50" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
               autocomplete="off" spellcheck="false" style="font-weight: bold; font-size: 12pt;"
               >%(prefill)s</textarea><p><input name="sub" value="calculate" type="submit">
             <input type="submit" name = "sub" value="start over" />
@@ -359,7 +412,7 @@ template = '''<html>
             </td>
         <td  valign="top" style="border-width:6;border-color:#FFBD32;border-style:ridge">
             <h2> Known quantities </h2>
-            <div style="height:150px;width:280px;overflow:auto;">
+            <div style="height:150px;width:220px;overflow:auto;">
             %(known)s
             </div>
             </td>
