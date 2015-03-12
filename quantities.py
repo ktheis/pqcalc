@@ -1,4 +1,8 @@
-# -*- coding: latin-1 -*-
+# coding=utf-8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 """
 
 Classes and functions to do arithmetic with physical quantities.
@@ -110,7 +114,7 @@ class Q(object):
             return "Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s, %(prefu)s)" % self.__dict__
         if self.name:
             return "Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s)" % self.__dict__
-        return "Q(%(rnumber)s, units=%(units)s, uncert=%(runcert)s)" % self.__dict__
+        return u"Q(%(rnumber)s, units=%(units)s, uncert=%(runcert)s)" % self.__dict__
 
     def __str__(self):
         return ascii_qvalue(self)
@@ -119,7 +123,7 @@ class Q(object):
     def sigfig(self):
         try:
             most = int(floor(math_log10(abs(self.number))))
-            sig = int(floor(math_log10(self.uncert*1.01)))
+            sig = int(floor(math_log10(self.uncert*1.05)))
             sigfig = most - sig + 1
         except:
             return 100
@@ -133,6 +137,8 @@ class Q(object):
                 self.depth = 0
             else:
                 self.depth = 1 + max(child.setdepth() for child in self.provenance)
+                if self.name == "-%s":
+                    self.depth -= 1
         return self.depth
 
     def steps(self, level, writer, subs=None):
@@ -150,16 +156,12 @@ class Q(object):
         name = self.name
         for index, q in enumerate(self.provenance):
             child = q.steps(level, writer, subs)
-            if q.provenance and level <= q.depth and opprio[name] > opprio[q.name] and opprio[name] and opprio[q.name]:
-                child = "(" + child + ")"
-            elif subs and "/" in name and ("/" in child):
-                child = "(" + child + "2)"
-                """ or (index==1 and level >= 0 and q.units != unity)):"""
-            elif name.startswith("-") and child.startswith("-"):
-                child = "(" + child + ")"
-            elif "^" in name and q.units != unity and level >= 0:
-                child = "(" + child + ")"
-            elif "^" in name and ("times" in child or "frac" in child) and level <= q.depth:
+            if ((q.provenance and level <= q.depth and opprio[name] > opprio[q.name] and opprio[name] and opprio[q.name] and not (subs and "/" in name)) or
+                (name.startswith("-") and child.startswith("-")) or
+                ("*" in name and index == 1 and child.startswith("-")) or
+                ("^" in name and q.units != unity and level >= 0) or
+                ("^" in name and child.startswith("-") and index == 0) or
+                ("^" in name and ("times" in child or "frac" in child))):
                 child = "(" + child + ")"
             children.append(child)
         if subs and name in subs:
@@ -170,7 +172,10 @@ class Q(object):
     def __mul__(self, other):
         units = tuple([x[0] + x[1] for x in zip(self.units, other.units)])
         number = self.number * other.number
-        uncert = math_sqrt((self.uncert / self.number)**2 + (other.uncert / other.number)**2) * abs(number)
+        if number:
+            uncert = math_sqrt((self.uncert / self.number)**2 + (other.uncert / other.number)**2) * abs(number)
+        else:
+            uncert = 0.0
         name = "%s * %s"
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, uncert, prefu, provenance)
@@ -182,7 +187,10 @@ class Q(object):
         except ZeroDivisionError:
             raise_QuantError("denominator is zero", "%s / %s", (self, other))
         name = "%s / %s"
-        uncert = math_sqrt((self.uncert / self.number)**2 + (other.uncert / other.number)**2) * abs(number)
+        if self.number:
+            uncert = math_sqrt((self.uncert / self.number)**2 + (other.uncert / other.number)**2) * abs(number)
+        else:
+            uncert = 0.0
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, uncert, prefu, provenance)
 
@@ -234,7 +242,7 @@ class Q(object):
         except ValueError:
             raise_QuantError("arithmetic problem", "%s ^ %s", (self, other))
         name = "%s ^ %s"
-        return Q(number, name, units, self.uncert/self.number * number * other.number, self.prefu, (self, other))
+        return Q(number, name, units, self.uncert/self.number * number * abs(other.number), self.prefu, (self, other))
 
 
 def ascii_units(list1):
@@ -251,7 +259,7 @@ def latex_units(list1):
 def ascii_qvalue (q, guard=0):
     """Formats quantities as number times a fraction of units, all with positive exponents"""
     value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
-    numbertext = ascii_number(value, q.sigfig, q.uncert * value/q.number)
+    numbertext = ascii_number(value, q.sigfig, q.uncert * value/q.number if q.number else 0.0)
     # numbertext = ascii_number(value, q.sigfig + guard)
     if len(neglist) == 1 and neglist[0][1] == 1:
         negtext = "/" + neglist[0][0]
@@ -266,14 +274,16 @@ def ascii_qvalue (q, guard=0):
     return numbertext + " " +  ascii_units(poslist) + negtext
 
 
-def latex_qvalue (q, guard=0, uncert=False, hideunits=False):
+def latex_qvalue (q, guard=0, uncert=False, hideunits=False, hidenumbers=False):
     value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
     if uncert:
         numbertext = latex_number(ascii_number(value, q.sigfig, q.uncert * value/q.number))
+    elif hidenumbers:
+        numbertext = "\_\_\_\_\_\_\_\_\_\_\_\_"
     else:
         numbertext = latex_number(ascii_number(value, q.sigfig + guard))
     if hideunits:
-        return numbertext + ("\\ldots" if q.units != unity else "")
+        return numbertext + ("\\phantom{\\frac{km mol}{kg mol}}" if q.units != unity else "")
     if neglist:
         negtext = "\\frac{%%s}{%s}" % latex_units(neglist)
     else:
@@ -310,6 +320,13 @@ def latex_writer3(q, showvalue=True, guard=0):
     return latex_qvalue(q, guard, hideunits=True)
 
 
+def latex_writer4(q, showvalue=True, guard=0):
+    if not showvalue and q.name:
+        return latex_name(q.name)
+    #  return repr(q)
+    return latex_qvalue(q, guard, hidenumbers=True)
+
+
 def try_all_derived(SIunits, derived):
     """Score the benefits of replacing SI units by any of the preferred derived units.
 
@@ -335,30 +352,44 @@ def unit_string(value, units, prefu={'M', 'L', 'J', 'C', 'V', 'N', 'W', 'Pa'}):
     Returns: (the number(float) and the units(str)) of the quantity
 
     """
-    if units == unity:
+    if units == unity or not value:
         return value, "", ""
     SIunits = list(units)
     derived = dict((pu, 0) for pu in prefu if sum(abs(t) for t in unitquant[pu].units) > 1)
     while (1 and derived):
-        print (SIunits, derived)
         (improvement, d, sign) = max(try_all_derived(SIunits, derived))
-        print (improvement)
         if improvement <= 0:
             break
         derived[d] += sign
         for i, used_in_derived in enumerate(unitquant[d].units):
             SIunits[i] -= used_in_derived * sign
         value /= unitquant[d].number ** sign
-    allunits = derived
-    for pu in prefu:
-        if pu not in derived and pu not in SIunit_symbols:
-            for i, used_in_alternate in enumerate(unitquant[pu].units):
-                if used_in_alternate:  # should be 1 or -1
-                    allunits[pu] = SIunits[i] / used_in_alternate
-                    SIunits[i] = 0
-                    value /= unitquant[pu].number ** allunits[pu]
+    allunits = dict([(x,derived[x]) for x in derived if derived[x]])
+    DUS = [du for du in allunits if du in derived]
+    for DU in DUS:
+        choices = [pu for pu in derived if unitquant[pu].units == unitquant[DU].units]
+        if not choices:
+            break
+        quality = [(abs(math_log10(abs(value) / (unitquant[c].number/unitquant[DU].number) ** allunits[DU])-1.0), c) for c in choices]
+        best = min(quality)[1]
+        if best != DU:
+            allunits[best] = allunits[DU]
+            value /= (unitquant[best].number/unitquant[DU].number) ** allunits[best]
+            allunits[DU] = 0
+    for i, SIU in enumerate(SIunit_symbols):
+        if not SIunits[i]:
+            continue
+        choices = [pu for pu in prefu if (pu not in derived) and unitquant[pu].units[i]]
+        if not choices:
+            break
+        quality = [(abs(math_log10(abs(value) / unitquant[c].number ** (SIunits[i] / unitquant[c].units[i]))-1.0), c) for c in choices]
+        best = min(quality)[1]
+        allunits[best] = SIunits[i] / unitquant[best].units[i]
+        SIunits[i] = 0
+        value /= unitquant[best].number ** allunits[best]
     for u, d in zip(SIunit_symbols, SIunits):
-        allunits[u] = d
+        if d:
+            allunits[u] = d
     poslist = [(u,exp) for u, exp in allunits.items() if exp > 0]
     neglist = [(u,-exp) for u, exp in allunits.items() if exp < 0]
     return value, poslist, neglist
@@ -371,8 +402,9 @@ def latex_number(ascii):
     if "e" in ascii:
         return ascii.replace("e", r"\times 10^{") + "}"
     if "/" in ascii:
-        n, d = ascii.split("/")
-        return "\\frac{%s}{%s}" % (n[1:], d[:-1])
+        sign, rest = ascii.split("(")
+        n, d = rest.split("/")
+        return "%s\\frac{%s}{%s}" % (sign, n, d[:-1])
     return ascii
 
 from fractions import Fraction
@@ -383,24 +415,30 @@ def ascii_number(number, sigfig, uncert=None, delta=0.0000000001):
     if number == 0.0 or number == 0:
         return "0"
     if (not uncert) and sigfig >= 100:
-        if int(number) and number - (int(number)) < delta:
+        if int(number) and abs(number) - abs(int(number)) < delta:
             return "%d" % int(number)
         a = Fraction(number).limit_denominator()
-        discr = number * a.denominator / a.numerator
-        if a.denominator < 10000 and discr < 1.00000001 and discr > 0.99999999:
-            return "(%d / %d)" % (a.numerator,a.denominator)
+        if a.numerator:
+            discr = number * a.denominator / a.numerator
+            if a.denominator < 10000 and discr < 1.00000001 and discr > 0.99999999:
+                if a.numerator > 0:
+                    return "(%d / %d)" % (a.numerator,a.denominator)
+                return "-(%d / %d)" % (-a.numerator,a.denominator)
         sigfig = 17
-    u = "%.5G" % uncert if uncert else ""
-    u = u.replace(".","").lstrip("0")
-    if ("E" in u):
-        u = u.split("E")[0]
-    if u:
-        if len(u) > 1:
-            sigfig += 1
-            u = u[:2]
+    if uncert:
+        u = "%.1G" % uncert
+        if "." in u:
+            least = -len(u.split(".")[1])
+        else:
+            least = len(u)
+        u = u.replace(".","").lstrip("0")
+        if ("E" in u):
+            u, exp = u.split("E")
+            least = int(exp) - 1
         u = "(" + u + ")"
-    least = mostsig(number) - sigfig + 1
-    #  print (number, uncert, u, sigfig)
+    else:
+        u = ""
+        least = mostsig(number) - sigfig + 1
     if least < 0 and least + sigfig > -2 and least + sigfig < 5:
         return "%.*f%s" % (-least, number, u)
     if not least:
@@ -436,7 +474,7 @@ def number2quantity(text):
     if "e" in text:
         text, expotext = text.split("e")
         expo = int(expotext)
-        dot = True
+    #    dot = True
     if "." in text or mult != 1:
         if "." in text:
             before, after = text.split(".")
@@ -455,51 +493,37 @@ def latex_name(name):
     mathname = []
     if "[" in name:
         name, brackets = name.split("[")
+        bb = brackets.split("]")
+        if len(bb) > 1 and len(bb[1]) > 0:
+            appendix = bb[1]
+        else:
+            appendix = ""
     else:
         brackets = ""
     parts = name.split("_")
     if len(parts[0]) > 1:
         try:
             i = int(parts[0][1:])
-            mathname.append("%s_{%d}" % (parts[0][0], i))
+            mathname.append(parts[0][0])
+            mathname.append(parts[0][1:])
         except ValueError:
             mathname.append("\\mathrm{%s}" % parts[0])
-    else:
+    elif parts[0]:
         mathname.append(parts[0])
-    if len(parts) > 1 and parts[1]:
-        mathname.append("_")
-        if len(parts[1]) > 1:
-            mathname.append("\\mathrm{%s}" % parts[1])
-        else:
-            mathname.append(parts[1])
-        if len(parts) > 2:
-            mathname.append("\\mathrm{%s}" % parts[2])
-    latexname = "".join(mathname).replace("Delta", "\\Delta ").replace("naught", "\\deg ")
+    for part in parts[1:]:
+        if part:
+            mathname.append("\\mathrm{%s}" % part)
     if brackets:
-        latexname = latexname + "[\\ce{" + brackets[:-1] + "}]"
-        '''
-        it = it.replace(" ", "\\ ")
-        for c in it:
-            if c in "0123456789":
-                if partslist[-1][0] in "0123456789" or partslist[-1][-1] == " ":
-                    partslist[-1] = partslist[-1] + c
-                else:
-                    partslist.append(c)
-            else:
-                if partslist[-1][0] in "0123456789":
-                    partslist.append(c)
-                else:
-                    partslist[-1] = partslist[-1] + c
-        latexname = before + "["
-        print "partslist", partslist, before, it, after
-        while partslist:
-            latexname = latexname + partslist.pop(0)
-            if partslist:
-                latexname = latexname + "_{" + partslist.pop(0) + "}"
-        latexname = latexname + "]" + after
-        '''
-    return latexname
-
+        if mathname:
+            mathname.append("\\ce{" + bb[0] + "}")
+        else:
+            mathname.append("[\\ce{" + bb[0] + "}]")
+        for part in appendix.split("_"):
+            if part:
+                 mathname.append("\\mathrm{%s}" % part)
+    if len(mathname) > 1:
+        return mathname[0] + "_{" + ",".join(mathname[1:]) + "}"
+    return mathname[0]
 
 def inherit_binary(q1, q2):
     prefu = q1.prefu | q2.prefu
@@ -522,7 +546,7 @@ opprio["%s ^ %s"] = 5
 opprio["%s * %s"] = 3
 opprio["%s / %s"] = 3
 opprio["%s + %s"] = 2
-opprio["-%s"] = 2
+opprio["-%s"] = 3
 opprio["%s - %s"] = 2
 
 
@@ -539,7 +563,6 @@ known_units = dict(
     J=(1.0, Units(kg=1, m=2, s=-2)),
     eV=(1.602176565e-19, Units(kg=1, m=2, s=-2)),
     V=(1.0, Units(A=-1, kg=1, m=2, s=-3)),
-    ohm=(1.0, Units(A=-1, kg=1, m=2, s=-3)),
     C=(1.0, Units(A=1, s=1)),
     L=(0.001, Units(m=3)),
     M=(1000., Units(mol=1, m=-3)),
@@ -548,9 +571,12 @@ known_units = dict(
     atm=(101325.0, Units(kg=1, m=-1, s=-2)),
     mmHg=(133.322368421, Units(kg=1, m=-1, s=-2)),
     min=(60.0, Units(s=1)),
-    hr=(3600.0, Units(s=1)),
+    h=(3600.0, Units(s=1)),
+    d=(86400.0, Units(s=1)),
     W=(1.0, Units(kg=1, m=2, s=-3))
 )
+known_units["Ω"] =(1.0, Units(A=-2, kg=1, m=2, s=-3))
+
 known_units["$"] = (1.0, Units(dollar=1))
 
 metric_prefices = dict(
@@ -569,7 +595,7 @@ metric_prefices['μ']= 1e-06
 unitquant = {}
 for unit in known_units:
     unitquant[unit] = Q(known_units[unit][0], unit, known_units[unit][1], prefu=[unit])
-    if unit in ["cm", "hr", "atm", "kg", "min", "mmHg", "$"]:
+    if unit in ["cm", "h", "d", "atm", "kg", "min", "mmHg", "$"]:
         continue
     for prefix in metric_prefices:
         unitquant[prefix + unit] = Q(known_units[unit][0] * metric_prefices[prefix], prefix + unit,
@@ -578,9 +604,18 @@ for unit in known_units:
 
 def minimum(a, b):
     if a.units != b.units:
-        raise TypeError("Can't compare two quantities with different dimensions")
+        raise_QuantError("Can't compare two quantities with different dimensions", "minimum(%s, %s)", (a,b))
     m = min(a, b, key=lambda x: x.number)
     return Q(m.number, "\\mathrm{minimum}(%s, %s)", m.units, m.uncert, m.prefu, (a, b))
+
+
+def average(*a):
+    units = a[0].units
+    for q in a:
+        if units != q.units:
+            raise_QuantError("Can't average quantities with different dimensions", "average(%s, ... %s)", (a[0],q))
+    m = sum(a,Q(0.0))/Q(len(a))
+    return Q(m.number, "\\mathrm{average}(%s)" % ", ".join(["%s"] * len(a)), m.units, m.uncert, m.prefu, tuple(a))
 
 
 def exp(a):
@@ -634,10 +669,10 @@ def quad(A, B, C):
     sol_big, sol_small = (-B + root) / (Q(2) * A), (-B - root) / (Q(2) * A)
     if B.number > 0:
         sol_big, sol_small = sol_small, sol_big
-    if abs(B.number) - root.number < 0.000001:
+    if abs(abs(B.number) - root.number) < 0.000001:
         sol_big_temp = Q(sol_big.number, uncert=sol_big.uncert, units=sol_big.units, prefu=sol_big.prefu)
         sol_big_temp.provenance = (A, B, C)
-        sol_big_temp.name = "(text{quadp}(%s, %s, %s))"
+        sol_big_temp.name = "(quadp(%s, %s, %s))"
         sol_small = C / A / sol_big_temp
     return sol_big, sol_small
 
@@ -678,7 +713,7 @@ def CtoKscale(a):
         raise_QuantError("Input temperature has to be a unit-less number", "text{CtoKscale}(%s)", (a,))
 
 
-functions = '''exp sqrt log ln quadp quadn minimum CtoKscale FtoKscale alldigits'''.split(" ")
+functions = '''exp sqrt log ln quadp quadn minimum CtoKscale FtoKscale alldigits average'''.split(" ")
 unit_list = []
 
 """ Tests and ideas

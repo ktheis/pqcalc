@@ -1,14 +1,14 @@
-# -*- coding: latin-1 -*-
+# coding=utf-8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 """
 Module to tie the quantities, calculator, and form modules together into an online calculator.
 
 The calculator is hosted on ktheis.pythonanywhere.com, but you could have a local server or run it
 on other platforms. In the calculator, you define values of named physical quantities,
-and then do arithmetic with them. The web server is implemented using web.py. Depending on the client
-browser, the server chooses which version of the web interface to show. For example, the screen layout
-for the iPhone is one column and opens an on-screen keyboard that has easy access to keys such as "=".
-On the other hand, the screen layout for laptops and desktops is two columns and includes a javascript
-keyboard accessible with a mouse or stylus.
+and then do arithmetic with them. The web server is implemented using web.py.
 
 """
 # This file contains the WSGI configuration required to serve up your
@@ -27,7 +27,8 @@ import web
 
 urls = (
     '/', 'index',
-    '/(js|css|png)/(.*)', 'static',
+    '/custom', 'preload',
+    '/(js|css|png|ico)/(.*)', 'static',
     '/example(.*)', 'example'
 )
 
@@ -36,7 +37,7 @@ import sys
 sys.path.append("/var/www")
 
 from calculator import calc, gather_symbols
-from form import newform, printableLog
+from form import newform, printableLog, helpform
 
 
 class index:
@@ -51,7 +52,7 @@ class index:
         mobile = ("ipad" in browser or "iphone" in browser or "ipod" in browser)
         if "ipod" in browser or "iphone" in browser or "android" in browser:
             mobile = "ipod"
-        return newform("", "", "", known, "", mobile)
+        return newform("", "", "", known, "", mobile, False)
 
 
     def POST(self):
@@ -66,26 +67,27 @@ class index:
             mobile = "ipod"
         try:
             state = web.input()
-            if state['sub'] == "start over":
-                return newform("", "", "", "", "", mobile)
+            if state['sub'] == "reset":
+                return newform("", "", "", "", "", mobile, False)
         except:
-            return newform("", "", "", "", "", mobile)
+            return newform("", "", "", "", "", mobile, False)
 
         oldsymbols = state['memory']
         logbook = state['logbook']
-        if state['sub'] == "printable view":
+        if state['sub'] == "print":
             allsymbols, symbollist = gather_symbols(oldsymbols)
             return printableLog(allsymbols, symbollist, logbook)
+        if state['sub'] == "help":
+            return helpform(mobile)
         commands = state['commands']
-        outp, logp, mem, known, mobile = calc(oldsymbols, commands, mobile)
-        # outp.append("<PRE>%s</PRE>"  % mobile)
-        return newform(outp, logp, mem, known, logbook, mobile)
+        outp, logp, mem, known, mobile, oneline = calc(oldsymbols, commands, mobile)
+        return newform(outp, logp, mem, known, logbook, mobile, oneline)
 
 
 class static:
     def GET(self, media, file):
         try:
-            f = open('/var/www/static/' + file, 'r')
+            f = open('static/' + file, 'r')
             return f.read()
         except:
             return 'bull %s %s' % (media, file)  # you can send an 404 error here if you want
@@ -104,7 +106,31 @@ class example:
         mobile = ("ipad" in browser or "iphone" in browser or "nexus" in browser)
         if "ipod" in browser or "iphone" in browser:
             mobile = "ipod"
-        return newform("", "", "", known, "", mobile, prefill=prefill)
+        return newform("", "", "", known, "", mobile, False, prefill=prefill)
+
+class preload:
+    """
+    Defines the home page of the PQCalc server with switches loaded.
+
+    """
+    def GET(self):
+        web.header('Content-Type', 'text/html; charset=utf-8', unique=True)
+        browser = web.ctx.env['HTTP_USER_AGENT'].lower()
+        mobile = ("ipad" in browser or "iphone" in browser or "nexus" in browser)
+        if "ipod" in browser or "iphone" in browser or "android" in browser:
+            mobile = "ipod"
+        try:
+            state = web.input(switch="")
+            if state['switch'] == "":
+                return newform("", "", "", "", "", mobile, False)
+        except:
+            return newform("", "", "", "", "", mobile, False)
+
+        oldsymbols = ""
+        logbook = ""
+        commands = "\n".join(["__%s__ = 1" % switch for switch in state['switch'].split("*")])
+        outp, logp, mem, known, mobile, oneline = calc(oldsymbols, commands, mobile)
+        return newform(outp, logp, mem, known, logbook, mobile, oneline)
 
 
 # comment out these two lines if you want to use another framework

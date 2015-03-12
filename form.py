@@ -1,3 +1,8 @@
+# coding=utf-8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 from quantities import functions, known_units
 
 selector = '''
@@ -21,46 +26,43 @@ unit_selector = fill_selector("units", unit_list)
 
 # function selectors, pre-baked
 function_list = [f + "()" for f in functions]
-function_list.extend(["using", "in "])
+function_list.extend(["using  ", "in  "])
 function_selector = fill_selector("functions", function_list, backup=1)
 
+# special symbol selector, pre-baked
+symbol_list = ["μ", "π","ℳ","ΔᵣG°′","αβγδεζησχ","∞∡ℏ","äöüßø", "ΓΘΛΦΨ"]
+symbol_selector = fill_selector("symbols", symbol_list)
 
-def quant_selectors(known, mob):
-    """ Make the selector for the left (what's next) box and the selector for the right (knowns) box
+def quant_selectors(known):
+    """ Make the selector for known quantities
     """
     choices = known.split("\n")
-    if mob:
-        return "<br>".join(choices), fill_selector("quantities", [term.rsplit("=",1)[0] for term in choices])
-    html = ['<option value="" selected="selected" disable="disabled">Click to use for next calculation</option>']
-    for term in choices:
-        sym = term.rsplit("=", 1)[0]
-        html.append(selectoroption % (sym, term))
-    return selector % ("size = 8", 0, "".join(html)), ""
+    return fill_selector("quantities", [term.rsplit("=",1)[0] for term in choices])
 
 
-def newform(outp, logp, mem, known, log, mob, prefill=""):
+
+def helpform(mob):
+    return  "<h3>Example calculations</h3><pre>%s</pre>" % exhtml
+
+def newform(outp, logp, mem, known, log, mob, oneline, prefill="", linespace="100%", logo=""):
     mem = "\n".join(mem)
     known = "\n".join(known)
-    logbook = log + "\n" + "\n".join(logp)
-    out = "\n".join(outp)
-    if mob:
-        keyb = ""
-        if mob == "ipod" and out:
-            out = calculationtempl % out
-    else:
-        keyb = 'class="keyboardInput"'
-    knownbox, selectors = quant_selectors(known, mob)
-    if not known:
-        knownbox = " -- nothing yet -- "
-    selectors = selectors + unit_selector + function_selector + "<br>"
+    if not outp:
+        logo = PQlogo
+    logbook = log.replace('"', '&quot;') + "\n" + ("\n".join(logp)).replace('"', '&quot;')
+    out = log.replace('&quot;', '"') + "\n".join(outp)
+    keyb = "" if mob else 'class="keyboardInput"'
+    selectors = quant_selectors(known)
+    selectors = selectors + unit_selector + function_selector + symbol_selector
+    rows = 3
     if prefill:
-        prefill = exdict[prefill]
-    data = dict(output=out, memory=mem, known=knownbox, selectors=selectors, logbook=logbook, keyboard=keyb, prefill=prefill, head=head, buttons=buttons)
-    if mob == "ipod":
-        data["head"] = headipod
-        return templateipod % data
-    else:
-        return template % data + "<h3>Example calculations</h3><pre>%s</pre>" % exhtml
+        prefill = exdict[prefill][:-2]
+        rows =len(prefill.split("\n"))
+    data = dict(output=out, memory=mem, rows=rows, selectors=selectors, logbook=logbook, keyboard=keyb,
+                prefill=prefill, head=head, buttons=buttons, linespacing=linespace, logo=logo)
+    if oneline and not prefill:
+        return template_oneline % data
+    return template % data
 
 
 def printableLog(symbols, symbollist, logbook):
@@ -68,264 +70,13 @@ def printableLog(symbols, symbollist, logbook):
     return printable_view % (known, logbook)
 
 
-example = '''problem = 1.71
-0.6274*1.00e3/(2.205*2.54^3)
-a_textbook = 17.4
 
-problem = 1.87
-percent = 1/100
-year = 365 * 24 hr
-input_Fertilizer = 1500. kg / year
-input_Nitrogen = 10 percent * input_Fertilizer
-wash_Nitrogen = 15 percent * input_Nitrogen
-flow_stream = 1.4 m^3/min
-c[added nitrogen] = wash_Nitrogen / flow_stream
-c[added nitrogen] using mg L
-a_textbook = 0.031 mg/L
-
-######
-problem = 1.96
-pi = 3.14159265
-d_gasoline = 0.73 g/mL
-d_water = 1.00 g/mL
-diameter = 3.2 cm
-radius = diameter / 2
-m_water = 34.0 g
-m_gasoline = 34.0 g
-V_water = m_water / d_water
-V_gasoline = m_gasoline / d_gasoline
-V_total = V_water + V_gasoline
-h_total = V_total / (radius^2 * pi)
-
-#######
-problem = 3.91
-
-#given
-m[CxHy] = 135.0 mg
-m[CO2] = 440.0 mg
-m[H2O] = 135.0 mg
-M[CxHy] = 270.0 g/mol
-
-#calculated from chemical formula
-M[C] = 12.0107 g/mol
-M[O] = 15.9994 g/mol
-M[H] = 1.00794 g/mol
-M[CO2] = M[C] + 2 * M[O]
-M[H2O] = 2 * M[H] + M[O]
-#calculation
-n[CO2] = m[CO2] / M[CO2]
-n[C] = n[CO2]
-n[H2O] = m[H2O] / M[H2O]
-n[H] = n[H2O]*2
-n[CxHy] = m[CxHy] / M[CxHy]
-ratio[nuC:nuH] = n[C] / n[H]
-
-# M[CxHy] = M[C] * nuC + M[H] * nuH = M[C] * ratio[nuC:nuH] nuH + M[H] * nuH
-# M[CxHy] = nuH * (M[C] * ratio[nuC:nuH] + M[H])
-nuH = M[CxHy] / (M[C] * ratio[nuC:nuH] + M[H])
-nuC = ratio[nuC:nuH] * nuH
-#texbook answer: C20H30
-
-######
-problem = 3.103
-
-m[KO2] = 2.50 g
-m[CO2] = 4.50 g
-nu[KO2] = 4
-nu[CO2] = 2
-nu[O2] = 3
-
-#calculated from chemical formula
-M[C] = 12.0107 g/mol
-M[O] = 15.9994 g/mol
-M[K] = 39.0983 g/mol
-
-M[KO2] = M[K] + 2 * M[O]
-M[CO2] = M[C] + 2 * M[O]
-
-#calculation
-n[KO2] = m[KO2] / M[KO2]
-n[CO2] = m[CO2] / M[CO2]
-
-n[KO2 -> lim] = n[KO2] / nu[KO2]
-n[CO2 -> lim] = n[CO2] / nu[CO2]
-
-n[lim] = minimum(n[KO2 -> lim], n[CO2 -> lim])
-V[O2] = n[lim] nu[O2] 8.314 J/(K mol) 298 K / 1 atm
-V[O2] using L
-m[O2] = n[lim] nu[O2] * 2 * M[O]
-#textbook : m[O2] = 0.844 g
-######
-
-
-
-problem = 4.111
-V_An = 100.0 mL
-V_Ti = 3.19 mL
-c_Ti = 0.0250 M
-# 1:1 stochiometry...
-c_An = c_Ti * V_Ti / V_An
-#answer:
-######
-problem = 6.87
-T = 298 K
-p = 1.00 atm
-R = 8.314 J / (mol K)
-M_Rn = 222. g / mol
-n_Rn = 1 mol
-#This is arbitrary,
-#it cancels out in the end
-V0 = n_Rn * R T / p
-m0 = n_Rn M_Rn
-d = m0 / V0
-######
-
-problem = 17.27
-[H+] = 3.45e-8 M
-pH = -log([H+]/1 M)
-#answer =
-######
-
-problem = 17.49
-K_a = 1.80e-4
-c = 0.0600 M
-# K_a = x^2/(0.06-x) <=> x^2 + x K_a - 0.06 K_a c/M = 0
-# solve quadratic: either quadp or quadn gives physically sensible answer
-A_ = 1
-B_ = K_a
-C_ = - K_a c / 1 M
-xp = quadp(A_, B_, C_)
-xn = quadn(A_, B_, C_)
-
-pH = -log(xp)
-# using the approximation that c[AH] = c[total]
-pH = -1/2 log(c / M K_a)
-######
-
-problem = 16.115
-
-K1 = 4.10e-4
-T1 = CtoKscale(2000.)
-T2 = CtoKscale(25.)
-DeltaH  = 180.6 kJ/mol
-R = 8.314 J/(mol K)
-# ln(K2/K1) = -DeltaH/R (1/T2 - 1/T1)
-K2 = K1 exp(-DeltaH/R (1/T2 - 1/T1))
-######
-problem = made.up
-T = 298.0 K
-R = 8.314 J/(mol K)
-K_eq = 2.54e6
-DeltaGnaught = - R T ln(K_eq)
-
-problem = first semester
-5 + 3
-__tutor__ = 1
-6 + 8
-R_gas = 0.08205746(14) L atm K^-1 mol^-1
-R_ryd = 1.0973731568539(55)e7 m^-1
-
-problem = practice units
-__hideunits__ = 1
-R = 8.3144621(75) J/(K mol)
-T = 298.0 K
-K_eq = 2.54e6
-DeltaGnaught = - R T ln(K_eq)
-
-
-problem = second semester
-R = 8.3144621(75) J/(K mol)
-T = 298.0 K
-K_eq = 2.54e6
-DeltaGnaught = - R T ln(K_eq)
-
-problem = physical chemistry
-__showuncert__= 1
-
-# gas constant
-R =  8.3144621(75) J/(K mol)
-# Boltzmann constant
-k_B = 1.3806488(13)e-23 J/K
-# Plank constant
-h = 6.62606957(29)e-34 J s
-# Speed of light (nowadays not a measurement, but a definition)
-c0 = 299792458 m/s
-# Mathematical constant Pi to 17 digits
-Pi = 3.1415926535897932
-# Permeability in vacuum
-mu_0 = 4 N A^-2 Pi  / 10000000
-# Permittivity in vacuum
-eps_0 = 1 / (c0^2 mu_0)
-# mass of electron
-m_elec= 9.10938215(45)e-31kg
-# Elementary charge
-e = 1.60217657e-19 C
-# Rydberg constant from first principles
-R_H = m_elec e^4 / (8 h^3 eps_0^2 c0)
-
-'''
-
-examples = example.split('problem = ')
-exdict = {}
-exhtml = []
-for ex in examples:
-    if "\n" not in ex:
-        continue
-    head, prob = ex.split("\n", 1)
-    exhtml.append('<a href="/example%s">Example %s</a><br>' % (head, head))
-    exhtml.append("<pre>%s</pre>" % prob)
-    exdict[head] = prob
-
-exhtml = "".join(exhtml)
-
-headipod = '''<head>
-<meta name="format-detection" content="telephone=no">
-
-<link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
-<script type="text/javascript" src="/js/keyboard.js" charset="UTF-8"></script>
-
-<script type="text/javascript"
-  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
-</script>
-
-<script type="text/javascript">
-<!--
-function insertAtCaret(thisChar, thereId, backup) {
-	function theCursorPosition(ofThisInput) {
-		// set a fallback cursor location
-		var theCursorLocation = 0;
-
-		// find the cursor location via IE method...
-		if (document.selection) {
-			ofThisInput.focus();
-			var theSelectionRange = document.selection.createRange();
-			theSelectionRange.moveStart('character', -ofThisInput.value.length);
-			theCursorLocation = theSelectionRange.text.length;
-		} else if (ofThisInput.selectionStart || ofThisInput.selectionStart == '0') {
-			// or the FF way
-			theCursorLocation = ofThisInput.selectionStart;
-		}
-		return theCursorLocation;
-	}
-
-	// now get ready to place our new character(s)...
-	var theIdElement = document.getElementById(thereId);
-	var currentPos = theCursorPosition(theIdElement);
-	var origValue = theIdElement.value;
-	var newValue = origValue.substr(0, currentPos) + thisChar + origValue.substr(currentPos);
-
-	theIdElement.value = newValue;
-
-}
-
-</script>
-
-</head>
-'''
 
 head = '''<head>
 <meta name="format-detection" content="telephone=no">
+<meta name="viewport" content="width=device-width; initial-scale=0.8;">
 
+<link rel="shortcut icon" href="/ico/favicon.ico"
 <link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
 <script type="text/javascript" src="/js/keyboard.js" charset="UTF-8"></script>
 <script type="text/x-mathjax-config">
@@ -335,6 +86,15 @@ head = '''<head>
 <script type="text/javascript"
   src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
 </script>
+
+<script type="text/javascript">
+
+function goToAnchor() {
+  location.href = "#commands";
+}
+
+</script>
+
 
 <script type="text/javascript">
 <!--
@@ -388,117 +148,81 @@ buttons = '''
 <input type="button" value="[]" onclick="insertAtCaret('commands','[]', 1);" />
 '''
 
+rest ='''
+'''
+
+PQlogo = '''<table><tr><td>
+
+   <img  src="data:image/gif;base64,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"
+width="115" height="76">
+
+
+
+    </td><td>
+    <h3> <br> 1. Set up a problem <br> 2. Solve it and press "go" <br> 3. See the work and the results </h3>
+    </td></tr></table><br>
+'''
+
 template = '''<html>
 %(head)s
-<body>
-<table>
-    <tr><td><h1> PQCalc</h1></td><td>
-    <h3> : a scientific calculator that keeps track of units and significant figures of physical quantities</h3>
-    </td></tr></table>
-<table width=100%% cellspacing="2" cellpadding="10">
-    <tr>
-        <td width=50%% valign="top" style="border-width:6;border-color:#1132FF;border-style:ridge">
-            <h2>What's next?</h2>
-            %(selectors)s
-            %(buttons)s
+<body onload="goToAnchor();">
+
+    %(logo)s
+    <div style="line-height:%(linespacing)s">
+
+            %(output)s
             <form enctype="multipart/form-data" action="." method="post">
-            <textarea rows="6" cols="50" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
+            <textarea autofocus rows="%(rows)d" cols="50" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
               autocomplete="off" spellcheck="false" style="font-weight: bold; font-size: 12pt;"
-              >%(prefill)s</textarea><p><input name="sub" value="calculate" type="submit">
-            <input type="submit" name = "sub" value="start over" />
-            <input type="submit" name = "sub" value="printable view" /> </p>
+              >%(prefill)s</textarea> <p>
+            <a name="myAnchor" ></a>
+            <input type="submit" name="sub" value="  go  ">
+
+            %(selectors)s </p>
+            %(buttons)s
+            <input type="submit" name = "sub" value="print" />
+            <input type="submit" name = "sub" value="reset" />
+            <input type="submit" name = "sub" value="help" />
+
             <input type="hidden" name="memory" value = "%(memory)s"/>
             <input type="hidden" name="logbook" value = "%(logbook)s"/>
-            </td>
-        <td  valign="top" style="border-width:6;border-color:#FFBD32;border-style:ridge">
-            <h2> Known quantities </h2>
-            <div style="height:150px;width:220px;overflow:auto;">
-            %(known)s
-            </div>
-            </td>
-        </tr>
-    <tr><td colspan = 2 valign="top" style="width:100%%;border-width:6;border-color:#BBFF32;border-style:ridge">
-        <h2> Calculation log </h2>
-        <script type="text/javascript">
-            function scrollDiv()
-            {
-            var el;
-            if ((el = document.getElementById('log'))
-            && ('undefined' != typeof el.scrollTop))
-            {
-            el.scrollTop = 0;
-            el.scrollTop = 5000;
-            }
-            }
-
-            window.onload = scrollDiv;
-
-            </script>
-        <div id="log" style="width=100%%;overflow:auto;">
-        %(output)s
-        </div>
-        </td>
-    </tr>
-</table>
-
+    </div>
 </body>
 </html>
 '''
 
-calculationtempl = '''<tr>
-<td valign="top" style="border-width:6;border-color:#BBFF32;border-style:ridge">
-<h2> Calculation log </h2>
-<script type="text/javascript">
-function scrollDiv()
-{
-var el;
-if ((el = document.getElementById('log'))
-&& ('undefined' != typeof el.scrollTop))
-{
-el.scrollTop = 0;
-el.scrollTop = 5000;
-}
-}
-
-window.onload = scrollDiv;
-
-</script>
-<div id="log" style="overflow:auto;">
-%s
-</div>
-</td>
-</tr>
-'''
-
-
-templateipod = '''<html>
+template_oneline = '''<html>
 %(head)s
-<body>
-<h1> PQCalc ipod</h1>
-<table cellspacing="2" cellpadding="10">
-    %(output)s
-    <tr><td valign="top" style="border-width:6;border-color:#1132FF;border-style:ridge">
-        <h2>What's next?</h2>
-        %(selectors)s <br>
-        %(buttons)s
-        <form enctype="multipart/form-data" action="." novalidate method="post">
-        <input id="commands" name="commands" size="35" %(keyboard)s  type="email" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
-        tyle="font-weight: bold; font-size: 12pt;">%(prefill)s</textarea><p><input name="sub" value="calculate" type="submit">
-        <input type="submit" name = "sub" value="start over" />
-        <input type="submit" name = "sub" value="printable view" /> </p>
-        <input type="hidden" name="memory" value = "%(memory)s"/>
-        <input type="hidden" name="logbook" value = "%(logbook)s"/>
-        </td></tr>
-    <tr><td  valign="top" style="border-width:6;border-color:#FFBD32;border-style:ridge">
-        <h2> Known quantities </h2>
-        <div style="overflow:auto;">
-        %(known)s
-        </div>
-        </td></tr>
-    </table>
+<body onload="goToAnchor();">
+<table>
+    <tr><td><h1> PQCalc</h1></td><td>
+    <h3> : a scientific calculator that keeps track of units and uncertainties of physical quantities</h3>
+    </td></tr></table>
+<table width=100%% cellspacing="2" cellpadding="10">
+
+    <tr>
+        <td width=100%% valign="top" style="border-width:6;border-color:#1132FF;border-style:ridge">
+            %(output)s
+            <form enctype="multipart/form-data" action="." method="post">
+            <input type="text" autofocus size="50" id="commands" name="commands" %(keyboard)s  autocapitalize="off"
+              autocomplete="off" spellcheck="false" style="font-weight: bold; font-size: 12pt;">
+            <input type="submit" name="sub" value="  go  ">
+            <p>
+            <a name="myAnchor" ></a>
+            %(buttons)s
+            <input type="submit" name = "sub" value="print" />
+            <input type="submit" name = "sub" value="reset" />
+            <input type="submit" name = "sub" value="help" />
+            </p>
+            %(selectors)s
+            <input type="hidden" name="memory" value = "%(memory)s"/>
+            <input type="hidden" name="logbook" value = "%(logbook)s"/>
+
 </body>
 </html>
 '''
+
+
 
 printable_view = '''<html>
 <head>
@@ -510,9 +234,12 @@ printable_view = '''<html>
 <script type="text/javascript"
   src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
 </script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({ TeX: { extensions: ["mhchem.js"] }});
+</script>
 </head>
 <body>Calculation done with PQCalc, the physical quantity calculator<br>
-that knows about quantities, units and significant figures.<br><br>
+that knows about quantities, units and uncertainties.<br><br>
 by Karsten Theis, Chemical and Physical Sciences, Westfield State University<br>
 inquiries and bug reports to ktheis@westfield.ma.edu<br><br>
 Program currently hosted at
@@ -529,3 +256,323 @@ http://ktheis.pythonanywhere.com/ </a>
 </body>
 </html>
 '''
+
+example = '''problem = 1.71
+0.6274*1.00e3/(2.205*2.54^3)
+a_textbook = 17.4
+
+problem = Addition
+a = 5.1 s
+b = 3.4 s
+c = a + b
+
+problem = division
+# 12.05 mol of dry ice have a mass of 530.4 g.
+# What is the molar mass of [CO2]?
+m[CO2] = 530.4 g
+n[CO2]=12.05 mol
+ℳ[CO2] = m[CO2] /  n[CO2]
+
+problem = 4.111
+V_Analyte = 100.0 mL
+V_Titrant = 3.19 mL
+c_Titrant = 0.0250 M
+# 1:1 stochiometry...
+c_Analyte = c_Titrant * V_Titrant / V_Analyte
+#answer: c_Analyte =7.98e-4 M
+
+problem = GenChem constants
+R = 8.314 J/(mol K)
+T_room = 293.15 K
+P_atm = 1 atm
+q_e = 1.602176E-19 C
+c0 = 299792458 m/s
+F = 96485.33 C/mol
+M_H = 1.08 g/mol
+M_C = 12.011 g/mol
+M_O = 15.999 g/mol
+M_Na = 22.9897 g/mol
+M_Cl = 35.45g/mol
+M_N = 14.007 g/mol
+N_A = 6.02214E23 /mol
+
+problem = 1.87
+percent = 1/100
+year = 365 * 24 hr
+input_Fertilizer = 1500. kg / year
+input_N = 10 percent * input_Fertilizer
+wash_N = 15 percent * input_N
+flow_stream = 1.4 m^3/min
+[N]added = wash_N / flow_stream
+[N]added using mg L
+a_textbook = 0.031 mg/L
+
+problem = 1.96
+pi = 3.14159265
+d_gasoline = 0.73 g/mL
+d_water = 1.00 g/mL
+diameter = 3.2 cm
+radius = diameter / 2
+m_water = 34.0 g
+m_gasoline = 34.0 g
+V_water = m_water / d_water
+V_gasoline = m_gasoline / d_gasoline
+V_total = V_water + V_gasoline
+h_total = V_total / (radius^2 * pi)
+
+#######
+problem = 3.91
+
+#given
+m[CxHy] = 135.0 mg
+m[CO2] = 440.0 mg
+m[H2O] = 135.0 mg
+M[CxHy] = 270.0 g/mol
+
+#calculated from chemical formula
+M[C] = 12.0107 g/mol
+M[O] = 15.9994 g/mol
+M[H] = 1.00794 g/mol
+M[CO2] = M[C] + 2 * M[O]
+M[H2O] = 2 * M[H] + M[O]
+#calculation
+n[CO2] = m[CO2] / M[CO2]
+n[C] = n[CO2]
+n[H2O] = m[H2O] / M[H2O]
+n[H] = n[H2O]*2
+n[CxHy] = m[CxHy] / M[CxHy]
+ratio[nuC:nuH] = n[C] / n[H]
+
+# _M[CxHy] = _M[C] * _nuC + _M[H] * _nuH = _M[C] * _ratio[nuC:nuH] _nuH + _M[H] * _nuH
+# _M[CxHy] = _nuH * (_M[C] * _ratio[nuC:nuH] + _M[H] )
+nuH = M[CxHy] / (M[C] * ratio[nuC:nuH] + M[H])
+nuC = ratio[nuC:nuH] * nuH
+#texbook answer: [C20H30]
+
+######
+problem = 3.103
+
+# If 2.50 g of [KO2] react with
+# 4.50 g of [CO2], how much dioxygen
+# will form (together with [K2CO3])?
+m[KO2] = 2.50 g
+m[CO2] = 4.50 g
+! 4KO2 + 2CO2 -> 3O2 + 2K2CO3
+ν[KO2] = 4
+ν[CO2] = 2
+ν[O2] = 3
+
+#calculate M from chemical formula
+__skip__=1
+M[C] = 12.0107 g/mol
+M[O] = 15.9994 g/mol
+M[K] = 39.0983 g/mol
+
+M[KO2] = M[K] + 2 * M[O]
+M[CO2] = M[C] + 2 * M[O]
+
+#calculation
+__skip__=0
+n[KO2] = m[KO2] / M[KO2]
+n[CO2] = m[CO2] / M[CO2]
+
+n[KO2 -> lim] = n[KO2] / ν[KO2]
+n[CO2 -> lim] = n[CO2] / ν[CO2]
+
+n[lim] = minimum(n[KO2 -> lim], n[CO2 -> lim])
+V[O2] = n[lim] ν[O2] 8.314 J/(K mol) 298 K / 1 atm
+V[O2] using L
+m[O2] = n[lim] ν[O2] * 2 * M[O]
+# textbook : _m[O2] = 0.844 g
+
+
+
+problem = 6.87
+# What is the density of radon at 298 K and 1 atm?
+T = 298 K
+P = 1.00 atm
+R = 8.314 J / (mol K)
+R using atm L
+M_Rn = 222. g / mol
+# Consider _n_Rn  = 1 mol
+# Any other value would give the same result...
+n_Rn = 1 mol
+V0 = n_Rn * R T / P
+m0 = n_Rn M_Rn
+ρ = m0 / V0
+
+
+problem = 17.27
+[H+] = 3.45e-8 M
+pH = -log([H+]/1 M)
+#answer =
+######
+
+problem = 17.49
+K_a = 1.80e-4
+c = 0.0600 M
+# K_a = x^2/(0.06-x) <=> x^2 + x K_a - 0.06 K_a c/M = 0
+# solve quadratic: either quadp or quadn gives physically sensible answer
+A_ = 1
+B_ = K_a
+C_ = - K_a c / 1 M
+xp = quadp(A_, B_, C_)
+xn = quadn(A_, B_, C_)
+
+pH = -log(xn)
+# using the approximation that c[AH] = c[total]
+pH = -1/2 log(c / M K_a)
+######
+
+problem = 16.115
+
+K1 = 4.10e-4
+T1 = CtoKscale(2000.)
+T2 = CtoKscale(25.)
+ΔH  = 180.6 kJ/mol
+R = 8.314 J/(mol K)
+# ln(_K2 / _K1) = -ΔH/R (1/_T2 - 1/_T1)
+K2 = K1 exp(-ΔH/R (1/T2 - 1/T1))
+######
+problem = made.up
+T = 298.0 K
+R = 8.314 J/(mol K)
+K_eq = 2.54e6
+ΔG° = - R T ln(K_eq)
+
+problem = first semester
+5 + 3
+__tutor__ = 1
+6 + 8
+R_gas = 0.08205746(14) L atm K^-1 mol^-1
+R_ryd = 1.0973731568539(55)e7 m^-1
+
+problem = practice units
+__hideunits__ = 1
+R = 8.3144621(75) J/(K mol)
+T = 298.0 K
+K_eq = 2.54e6
+ΔG° = - R T ln(K_eq)
+
+
+problem = second semester
+R = 8.3144621(75) J/(K mol)
+T = 298.0 K
+K_eq = 2.54e6
+ΔG° = - R T ln(K_eq)
+
+problem = physical chemistry
+__showuncert__= 1
+
+# gas constant
+R =  8.3144621(75) J/(K mol)
+# Boltzmann constant
+k_B = 1.3806488(13)e-23 J/K
+# Plank constant
+h = 6.62606957(29)e-34 J s
+# Speed of light (nowadays not a measurement, but a definition)
+c0 = 299792458 m/s
+# Mathematical constant Pi to 17 digits
+π = 3.1415926535897932
+# Permeability in vacuum
+μ0 = 4 N A^-2 π / 10000000
+# Permittivity in vacuum
+ε0 = 1 / (c0^2 μ0)
+# mass of electron
+m_elec= 9.10938215(45)e-31kg
+# Elementary charge
+e = 1.60217657e-19 C
+# Rydberg constant from first principles
+R_H = m_elec e^4 / (8 h_^3 ε0^2 c0)
+#Bohr radius to check
+ħ = h_ / (2π)
+a0 = 4 π ε0 ħ^2 /(m_elec e^2)
+
+problem = R_units
+R = 8.314 Pa m^3/(mol K)
+R2 = R / (101325 Pa * 1 m^3) * 1 atm * 1000 L
+R3 = R * 1 atm * 1000 L / (101325 Pa * 1 m^3)
+R4 = R * (1 atm / 101325 Pa) * (1000 L / 1 m^3)
+P = 1 atm
+P using Pa
+
+problem = concentration
+# Titration of KOH with [H2SO4] to equivalence point
+# Given:
+V[KOH] = 5.00 mL
+[H2SO4] = 0.100 M
+V[H2SO4] = 34.5 mL
+# Plan: 1) _n[H2SO4] via c=n/V,
+#       2) _n[KOH] via coefficients,
+#       3) _[KOH] via c=n/V
+n[H2SO4] = [H2SO4] * V[H2SO4]
+!H2SO4 + 2 KOH -> 2 H2O + 2 K+ + 2 SO4^2-
+n[KOH] = n[H2SO4] / 1 * 2
+[KOH]original = n[KOH] / V[KOH]
+
+
+problem = showcase chemistry markup
+# Limiting reagent problem
+# The balanced reaction is:
+! H2SO4 + 2 KOH -> 2 H2O + 2 K+ + 2 SO4^2-
+# Given:
+n[H2SO4]start = 3.4 mmol
+n[KOH]start = 7.4 mmol
+n[->] = minimum(n[H2SO4]start/1, n[KOH]start/2)
+n[H2SO4]end = n[H2SO4]start - 1 * n[->]
+n[KOH]end = n[KOH]start - 2 * n[->]
+
+problem = J Chem Ed 2012, 89, 326−334
+#   0.564 grams of [AgNO3] is dissolved in 25.00 mL of 0.250 molar [BaCl2].
+#   A precipitate forms and is isolated and weighed.
+#   Its mass is 0.392 grams.
+#   What is the percent yield of the reaction?
+m[AgNO3]= 0.564 g
+V[BaCl2 sol] = 25.00 mL
+c[BaCl2] = 0.250 M
+m_prec= 0.392 g
+#   Plan:
+#      1) Nature of precipitate
+#      2) Find limiting reagent
+#      3) Calculate yield!
+#
+#   1) Nature of precipitate
+! BaCl2(s) -> Ba^2+(aq) + 2 Cl- (aq)
+! AgNO3(s) -> Ag+(aq) + NO3- (aq)
+#   [AgNO3], [BaCl2], and [Ba(NO3)2] are soluble, [AgCl] isn't
+#
+#   2) Find limiting reagent
+#      First, need a balanced chemical equation
+! 2AgNO3 + BaCl2 -> 2AgCl(s) + Ba^2+ + 2 NO3-
+#      Try either reagent in excess and see which gives least product
+#        Case A: [AgNO3] limiting and [BaCl2] in excess
+M[AgNO3] = 169.87 g/mol
+n[AgNO3] = m[AgNO3] / M[AgNO3]
+#            [AgNO3] and [AgCl] at equimolar ratio
+n[AgCl]A = n[AgNO3]
+#        Case B: [AgNO3] in excess and [BaCl2] limiting
+n[BaCl2] = c[BaCl2] V[BaCl2 sol]
+#          [BaCl2] and [AgCl] at 1:2 molar ratio
+n[AgCl]B = n[BaCl2] * 2
+#     _n[AgCl]A is smaller than _n[AgCl]A , so [AgNO3] is limiting
+#
+#   3) Calculate yield
+M[AgCl] = 143.32 g/mol
+m[AgCl]theoretical = n[AgCl]A * M[AgCl]
+m[AgCl]actual = m_prec
+yield = m[AgCl]actual / m[AgCl]theoretical
+
+'''
+
+examples = example.split('problem = ')
+exdict = {}
+exhtml = []
+for ex in examples:
+    if "\n" not in ex:
+        continue
+    head2, prob = ex.split("\n", 1)
+    exhtml.append('<a href="/example%s">Example %s</a><br>' % (head2, head2))
+    exhtml.append("<pre>%s</pre>" % prob)
+    exdict[head2] = prob
+
+exhtml = "".join(exhtml)

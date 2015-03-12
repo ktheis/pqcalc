@@ -1,4 +1,8 @@
-# -*- coding: latin-1 -*-
+# coding=utf-8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 """
 Functions to run an interpreter for expressions containing physical quantities.
 
@@ -13,16 +17,13 @@ error messages). Output is either in HTML or in MathML via LaTeX.
 from __future__ import division
 
 import quantities
-from quantities import Q, Units, QuantError, latex_name
+from quantities import Q, Units, QuantError, latex_name, unitquant
 
 
 class CalcError(ArithmeticError): pass
 
 
-try:
-    from re import Scanner
-except:
-    from sre import Scanner
+from re import Scanner, UNICODE
 
 
 def identifier(scanner, token): return "I", token.strip()
@@ -38,12 +39,19 @@ def comment(scanner, token): return "C", token.strip()
 
 
 scanner = Scanner([
-    (r"(([a-zA-Z]\w*(\[[^]]+\])?)|(\[[^]]+\])|(\{[^}]+\})|\$)", identifier),
-    (r"((\d*\.\d+)|(\d+\.?))(\(\d\d?\))?([Ee][+-]?\d+)?", float2),
+    (r"[#!].*", comment),
     (r"[ ,()/*^+-]+", operator),
-    (r"[#!].*", comment)
-])
+    (r"((\d*\.\d+)|(\d+\.?))(\(\d\d?\))?([Ee][+-]?\d+)?", float2),
+    (r"[^\[ ,()/*\^+\-]+(\[[^]]+\])?\w*", identifier),
+    (r"\[[^]]+\]\w*", identifier)
+], UNICODE)
 
+"""
+operator: one or more of the following: | ,()/*^+-|
+float2: any floating point representation with uncertainty, e.g. 3.5(1)E-34
+identifier: has to start with non-operator non-digit, may have something in brackets, may have something added
+identifier: anything in brackets followed by anything
+"""
 
 def scan(t):
     """scan text for identifers(I), operators(O), numbers(N) and comments(C)"""
@@ -59,7 +67,11 @@ def scan(t):
     tokens.append(("Z", ""))
     for i, (ttype, ttext) in enumerate(tokens):
         if ttype == "I":
+            if ttext.endswith("Ohm"):
+                ttext = ttext.replace("Ohm","Ω")
             if ttext in quantities.unitquant:
+                if ttext.startswith("u"):
+                    ttext = "μ" + ttext[1:]
                 tokens[i] = "U", ttext
             elif ttext in quantities.functions:
                 tokens[i] = "F", ttext
@@ -68,15 +80,13 @@ def scan(t):
 
 def fixoperator(operator, tokens):
     """
-    Add implicit '*' to operator unless it follows a function call.
+    Change implicit multiplication to explicit '*' in operator unless it follows a function call.
 
     e.g. 'I I' -> 'I *I', 'I)(I' -> 'I)*(I', but 'F(I' is unchanged
     """
     if tokens and tokens[-1][0] == "F":
         return operator
     for i, c in enumerate(operator):
-        if c in " )":
-            continue
         if c == "(":
             i = i - 1
             break
@@ -194,7 +204,7 @@ def create_Python_expression(paired_tokens, symbols):
                 result.append("quantities." + ttext)
             else:  # ttype == "I"
                 if ttext in symbols:
-                    result.append(repr(symbols[ttext]))
+                    result.append(symbols[ttext].__repr__())
                 else:
                     raise CalcError("unknown symbol %s encountered" % ttext)
             continue
@@ -255,30 +265,43 @@ def load_symbols(oldsymbols):
 
 
 def calc_without_assignment(a, output, symbols, mob):
-    output.append('<pre>%s</pre>' % a)
+    if "__tutor__" in symbols:
+        output.append('<pre>In: %s</pre>' % a)
     if " using " in a:
         quant, units = a.split(" using ")
         prefu = units.split()
-        q = symbols[quant.strip()]
+        for p in prefu:
+            if p not in unitquant:
+                raise CalcError ("PQCalc does not recognize the unit '%s', so 'using' does not work. Try 'in' instead." % p)
+        try:
+            q = symbols[quant.strip()] + Q(0.0)
+        except KeyError:
+            raise CalcError ("The quantity '%s' is not defined yet. Check for typos." % quant.strip())
+        q.name = ""
+        q.provenance = None
         outp = []
         show_work(q, quant, outp, mob != "ipud")
-        output.append(outp[-1])
-        q.prefu = prefu
+        output.extend(outp[:-1])
+        symbols[quant.strip()].prefu = set(prefu)
+        q = symbols[quant.strip()] + Q(0.0)
         show_work(q, quant, outp, mob != "ipud")
-        output.append(outp[-1])
+        output.extend(outp[-2:])
     elif " in " in a:
         quant, units = a.split(" in ")
         tmp = interpret(units, symbols, output, mob)
-        qq = symbols[quant.strip()] / tmp
-        addon = quantities.latex_name(units) if mob == "ipud" else units
-        show_work(qq, quant, output, math=(mob != "ipud"), addon=addon)
+        try:
+            qq = symbols[quant.strip()] / tmp
+        except KeyError:
+            raise CalcError ("The quantity '%s' is not defined yet. Check for typos." % quant.strip())
+        addon = ("\mathrm{\ %s}" % quantities.latex_name(units)) if mob != "ipud" else units
+        show_work(qq, quant, output, math=(mob != "ipud"), addon=addon, skipsteps=("__skip__" in symbols),showuncert=("__showuncert__" in symbols), hideunits=("__hideunits__" in symbols), hidenumbers=("__hidenumbers__" in symbols))
     else:
         return False
-    output.append("<hr>")
+    #output.append("<hr>")
     return True
 
 
-def figure_out_name(a, output, logput):
+def figure_out_name(a, output, logput, symbols):
     if "=" in a:
         bracket  = 0
         for i, c in enumerate(a):
@@ -295,27 +318,36 @@ def figure_out_name(a, output, logput):
         tokens, remainder = scanner.scan(sym)
         if len(tokens) != 1 or tokens[0][0] != "I":
             if not sym.startswith("__"):
-                raise CalcError(("Please don't use %s as a name for a quantity<br><pre>%s<pre>" %
+                raise CalcError(("Please don't use %s as a name for a quantity<br><pre>%s</pre>" %
                              (sym, rules_for_symbol_name)))
         if sym in quantities.unitquant or sym in quantities.functions:
             conf = "function" if sym in quantities.functions else "unit"
             output.append(
-                '<div style="color: green;">Warning: %s changed to %s_ to avoid confusion with the %s</div>' % (
+                '<div style="color: green;">Warning: %s changed to %s_ to avoid confusion with the %s</div><br>' % (
                 sym, sym, conf))
             sym = sym + "_"
-        output.append("<pre>\n%s = %s</pre>" % (sym, expression))
+        if "__tutor__" in symbols and not sym.startswith("__"):
+            output.append("<pre>\nIn: %s = %s</pre>" % (sym, expression))
         #  logput.append("\n%s = %s" % (sym, expression))
     else:
         sym = "result"
         expression = a
-        output.append("<pre>\n%s = %s</pre>" % (sym, a))
+        if "__tutor__" in symbols:
+            output.append("<pre>\nIn: %s = %s</pre>" % (sym, a))
     return sym, expression
 
 
-def show_work(result, sym, output, math, logput=None, error=False, addon = "", skipsteps = False, showuncert=False, hideunits=False):
+def show_work(result, sym, output, math, logput=None, error=False, addon = "", skipsteps = False, showuncert=False, hideunits=False, hidenumbers=False):
+    if sym.startswith("__"):
+        return
+    if logput:
+        logput.append ('''<span style="cursor:pointer" onclick="insertAtCaret('commands','%s ', 0)">''' % sym)
+    output.append ('''<span style="cursor:pointer" onclick="insertAtCaret('commands','%s ', 0)">''' % sym)
     if math:
         if hideunits:
             writer = quantities.latex_writer3
+        elif hidenumbers:
+            writer = quantities.latex_writer4
         elif showuncert:
             writer = quantities.latex_writer2
         else:
@@ -324,11 +356,17 @@ def show_work(result, sym, output, math, logput=None, error=False, addon = "", s
         writer = quantities.ascii_writer
     subs = {"%s / %s":"\\dfrac{%s}{%s}",
             "%s * %s": "%s \\cdot %s",
-            "%s ^ %s": "%s^{%s}",
+            "%s ^ %s": "{%s}^{%s}",
             "exp(%s)": "e^{%s}",
             "log(%s)":"\\mathrm{log}(%s)",
             "ln(%s)":"\\mathrm{ln}(%s)",
-            "sqrt(%s)":"\\sqrt{%s}"} if math else None
+            "sqrt(%s)":"\\sqrt{%s}",
+            "quadn(%s":"\\mathrm{quadn}(%s",
+            "quadp(%s":"\\mathrm{quadp}(%s",
+            "average(%s":"\\mathrm{average(%s",
+            "minimum(%s":"\\mathrm{minimum(%s",
+            "alldigits(%s)":"\\mathrm{alldigits}(%s)",
+            } if math else None
     d = result.setdepth()
     if math:
         template1 = "\(%s = %s%s\)<br><br>"
@@ -337,6 +375,8 @@ def show_work(result, sym, output, math, logput=None, error=False, addon = "", s
         template1 = "%s = %s%s<br>" if d <= 0 else "%s = <br>&nbsp;&nbsp;&nbsp;= %s%s<br>"
         template2 = "&nbsp;&nbsp;&nbsp;= %s%s<br>"
     task = result.steps(-1, writer, subs)  # task
+    if hidenumbers:
+        task = result.steps(-1, quantities.latex_writer, subs)
     name = latex_name(sym) if math else str(sym)
     output.append(template1 % (name, task, addon))
     if logput:
@@ -345,26 +385,53 @@ def show_work(result, sym, output, math, logput=None, error=False, addon = "", s
         for dd in range(1, d + 1):
             if dd == 1:
                 first = result.steps(dd, writer, subs)
+                if hidenumbers:
+                    first = result.steps(dd, quantities.latex_writer, subs)
                 if first != task:
                     output.append(template2 % (first, addon))
             else:
                 output.append(template2 % (result.steps(dd, writer, subs), addon))  # intermediate steps
     result_str = result.steps(0, writer, subs)  # result
-    if result_str != task and not error:
+    if result_str != task and not error and not (hidenumbers and d == 0):
         #print (result, task, math)
         if logput:
             logput.append(template2 % (result_str, addon))
         output.append(template2 % (result_str, addon))
+    if logput:
+        logput.append ('</span>')
+    output.append ('</span>')
 
 
 def register_result(result0, sym, symbols, symbollist, output):
     result0.provenance = []
     result0.name = sym[:]
-    if sym in symbols:
-        output.append('<div style="color: green;">Warning: Updated value of %s</div><br>' % sym)
+    symbols[sym] = result0
+    if sym.startswith("__"):
+        if not result0.number:
+            del symbols[sym]
+            if sym in symbollist:
+                symbollist.remove(sym)
+        elif sym not in symbollist:
+            symbollist.append(sym)
+    elif sym in symbollist:
+        output.append('<div style="color: green;">Warning: Updated value of %s</div><br>' % (format_identifier(sym)))
     else:
         symbollist.append(sym)
-    symbols[sym] = result0
+    if "__checkunits__" in symbols:
+        if len(sym) == 1 or sym[1] in "_0123456789[" or sym[0] == "[":
+            if sym[0] in typicalunits and result0.units != typicalunits[sym[0]][0]:
+                output.append('<div style="color: green;">Warning: %s looks like a %s, but units are strange</div><br>' % (format_identifier(sym), typicalunits[sym[0]][1]))
+
+typicalunits = dict(
+    c=(Units(m=-3,mol=1),"concentration"),
+    V=(Units(m=3),"volume"),
+    m=(Units(kg=1),"mass"),
+    P=(Units(kg=1,m=-1,s=-2),"pressure"),
+    T=(Units(K=1),"absolute temperature"),
+    t=(Units(s=1),"time"),
+    n=(Units(mol=1),"chemical amount"))
+
+typicalunits["["] = typicalunits["c"]
 
 
 def explain_failure(a, error, output, mob):
@@ -374,6 +441,56 @@ def explain_failure(a, error, output, mob):
     if problem[1]:
         show_work(problem[1], "problem", output, math=(mob != "ipud"), error=True)
     output.append("<hr>")
+
+def consume_comment(charlist):
+    cl2 = []
+    while charlist and not charlist[0] in "[_":
+        c = charlist.pop(0)
+        if c == " ":
+            cl2.append("&nbsp;")
+        else:
+            cl2.append(c)
+    return "".join(cl2)
+
+def consume_identifier(charlist):
+    cl2 = []
+    charlist.pop(0)
+    while charlist:
+        if charlist[0] == " ":
+            charlist.pop(0)
+            break
+        cl2.append(charlist.pop(0))
+    return "\\(%s\\)" % latex_name("".join(cl2))
+
+def format_identifier(name):
+    return consume_identifier(["_"]+[c for c in name])
+
+def consume_formula(charlist):
+    cl2 = []
+    charlist.pop(0)
+    while charlist:
+        c = charlist.pop(0)
+        if c == "]":
+            break
+        cl2.append(c)
+    return "\\(\\ce{%s}\\)" % "".join(cl2)
+
+
+
+def comments(line):
+    charlist = [c for c in line]
+    interpretation = []
+    while charlist:
+        if charlist[0] == "[":
+            interpretation.append(consume_formula(charlist))
+            continue
+        if charlist[0] == "_":
+            interp = consume_identifier(charlist)
+            if interp:
+                interpretation.append(interp)
+                continue
+        interpretation.append(consume_comment(charlist))
+    return "".join(interpretation)
 
 
 def calc(oldsymbols, commands, mob):
@@ -386,25 +503,42 @@ def calc(oldsymbols, commands, mob):
         if not a or not a.strip():
             continue
         if a.startswith("!") or a.startswith("#"):
-            output.append('<hr><div style="color: blue;"><pre>%s</pre><hr></div>' % a[1:])
+            if a.startswith("!"):
+                if "__tutor__" in symbols:
+                    output.append("<pre>\nIn: %s</pre>" % a)
+                output.append('<span style="color: blue;font-size: 14pt;">\\(\\ce{\\ %s}\\)<br><br></span>' % a[1:])
+                logput.append('<span style="color: blue;font-size: 14pt;">\\(\\ce{\\ %s}\\)<br><br></span>' % a[1:])
+            else:
+                if "__tutor__" in symbols:
+                    output.append("<pre>\nIn: %s</pre>" % a)
+                formatted = comments(a[1:])
+                output.append('<div style="color: blue; font-size: 11pt;">%s</div><br>' % formatted)
+                logput.append('<div style="color: blue; font-size: 11pt;">%s</div><br>' % formatted)
             continue
         try:
             if not "=" in a:
                 if calc_without_assignment(a, output, symbols, mob):
+                    if " in " not in output[0]:
+                        logput = output[1:]
                     continue
-            sym, expression = figure_out_name(a, output, logput)
+            sym, expression = figure_out_name(a, output, logput, symbols)
             if "__tutor__" in symbols and sym == "result" and "=" not in a:
                 raise CalcError("Your tutor says: Please come up with a name for the quantity you are calculating")
+
             result0 = interpret(expression, symbols, output, mob)
-            '''if str(result0) != expression.strip():
-                logput.append("  = %s" % str(result0))'''
+
             show_work(result0, sym, output, math=(mob != 'ipud'), logput=logput,
-                      skipsteps=("__skip__" in symbols),showuncert=("__showuncert__" in symbols), hideunits=("__hideunits__" in symbols))
+                      skipsteps=("__skip__" in symbols),showuncert=("__showuncert__" in symbols), hideunits=("__hideunits__" in symbols), hidenumbers=("__hidenumbers__" in symbols))
             register_result(result0, sym, symbols, symbollist, output)
         except QuantError as err:
             output.append(err.args[0][0])
             break
+        except OverflowError as err:
+            output.append("Overflow error, sorry: %s" % a)
+            break
         except CalcError as err:
+            if "__tutor__" not in symbols:
+                output.append("<pre>\n%s</pre>" % a)
             output.append(err.args[0])
             if err.args[0].startswith("If you always"):
                 output = [err.args[0]]
@@ -412,11 +546,16 @@ def calc(oldsymbols, commands, mob):
         '''except ValueError as err:
             output.append(err.args[0])
         output.append("<hr>")'''
+    if output and not output[-1].endswith("<hr>"):
+        output = ["<hr>"] + output
     memory = [symbols[s].__repr__() for s in symbollist]
     known = [s + " = " + symbols[s].__str__() for s in symbollist]
     # return ["fake output"], logput, memory, known, mob
     #  print ("logput:", logput)
-    return output, logput, memory, known, mob
+    oneline = ("__oneline__" in symbols)
+    if "__latex__" in symbols:
+        output = ["<pre>"] + output + ["</pre>"]
+    return output, logput, memory, known, mob, oneline
 
 def gather_symbols(oldsymbols):
     allsymbols = {}
@@ -438,17 +577,17 @@ if __name__ == "__main__":
         output = []
         logput = []
         try:
-            sym, expression = figure_out_name(command, output, logput)
+            sym, expression = figure_out_name(command, output, logput, symbols)
             result0 = interpret(expression, symbols, output, mob)
-            print repr(result0), result0
+            print (repr(result0), result0)
             show_work(result0, sym, output, math=True)
             register_result(result0, sym, symbols, symbollist, output)
         except CalcError as err:
             output.append(err.args[0])
         for line in output:
             print (line)
-        command = raw_input("pqcalc>>>")    
-        
+        command = raw_input("pqcalc>>>")
+
 
 """
 Test input that should fail gracefully:
