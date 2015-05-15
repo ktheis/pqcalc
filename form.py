@@ -44,11 +44,13 @@ def quant_selectors(known):
 def helpform(mob):
     return  "<h3>Example calculations</h3><pre>%s</pre>" % exhtml
 
-def newform(outp, logp, mem, known, log, mob, oneline, prefill="", linespace="100%", logo=""):
+def newform(outp, logp, mem, known, log, mob, oneline, inputlog, prefill="", linespace="100%", logo=""):
     mem = "\n".join(mem)
     known = "\n".join(known)
     if not outp:
         logo = PQlogo
+    mem = mem.replace('"', '&quot;')
+    inputlog = inputlog.replace('"', '&quot;')
     logbook = log.replace('"', '&quot;') + "\n" + ("\n".join(logp)).replace('"', '&quot;')
     out = log.replace('&quot;', '"') + "\n".join(outp)
     keyb = "" if mob else 'class="keyboardInput"'
@@ -59,15 +61,15 @@ def newform(outp, logp, mem, known, log, mob, oneline, prefill="", linespace="10
         prefill = exdict[prefill][:-2]
         rows =len(prefill.split("\n"))
     data = dict(output=out, memory=mem, rows=rows, selectors=selectors, logbook=logbook, keyboard=keyb,
-                prefill=prefill, head=head, buttons=buttons, linespacing=linespace, logo=logo)
+                prefill=prefill, head=head, buttons=buttons, linespacing=linespace, logo=logo, inputlog=inputlog)
     if oneline and not prefill:
         return template_oneline % data
     return template % data
 
 
-def printableLog(symbols, symbollist, logbook):
+def printableLog(symbols, symbollist, logbook, inputlog):
     known = "\n".join([s + "=" + symbols[s].__str__() for s in symbollist])
-    return printable_view % (known, logbook)
+    return printable_view % (known, inputlog, logbook)
 
 
 
@@ -133,6 +135,15 @@ function insertAtCaret(areaId,text,backup) {
     txtarea.scrollTop = scrollPos;
 }
 </script>
+<style>
+@media all {
+	.page-break	{ display: none; }
+}
+
+@media print {
+	.page-break	{ display: block; page-break-before: always; }
+}
+</style>
 
 </head>
 '''
@@ -165,26 +176,27 @@ width="115" height="76">
 
 template = '''<html>
 %(head)s
-<body onload="goToAnchor();">
+<body>
 
     %(logo)s
     <div style="line-height:%(linespacing)s">
 
             %(output)s
+            <div class="page-break"></div>
             <form enctype="multipart/form-data" action="." method="post">
             <textarea autofocus rows="%(rows)d" cols="50" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
-              autocomplete="off" spellcheck="false" style="font-weight: bold; font-size: 12pt;"
+              autocomplete="on" spellcheck="false" style="font-weight: bold; font-size: 12pt;"
               >%(prefill)s</textarea> <p>
-            <a name="myAnchor" ></a>
             <input type="submit" name="sub" value="  go  ">
 
             %(selectors)s </p>
             %(buttons)s
-            <input type="submit" name = "sub" value="print" />
+            <input type="submit" name = "sub" value="export" />
             <input type="submit" name = "sub" value="reset" />
             <input type="submit" name = "sub" value="help" />
 
             <input type="hidden" name="memory" value = "%(memory)s"/>
+            <input type="hidden" name="inputlog" value = "%(inputlog)s"/>
             <input type="hidden" name="logbook" value = "%(logbook)s"/>
     </div>
 </body>
@@ -216,6 +228,7 @@ template_oneline = '''<html>
             </p>
             %(selectors)s
             <input type="hidden" name="memory" value = "%(memory)s"/>
+            <input type="hidden" name="inputlog" value = "%(inputlog)s"/>
             <input type="hidden" name="logbook" value = "%(logbook)s"/>
 
 </body>
@@ -243,11 +256,13 @@ that knows about quantities, units and uncertainties.<br><br>
 by Karsten Theis, Chemical and Physical Sciences, Westfield State University<br>
 inquiries and bug reports to ktheis@westfield.ma.edu<br><br>
 Program currently hosted at
-<a href="http://www.bioinformatics.org/pdbtools/PQCalc">
-bioinformatics.org/pdbtools/PQCalc </a> and
+<a href="http://www.bioinformatics.org/pqcalc">
+bioinformatics.org/PQCalc </a> and
 <a href="http://ktheis.pythonanywhere.com/">
 http://ktheis.pythonanywhere.com/ </a>
 <h2> Known quantities </h2>
+<PRE>%s</PRE>
+<h2> Input </h2>
 <PRE>%s</PRE>
 
 <h2> Log of the calculation </h2>
@@ -260,6 +275,25 @@ http://ktheis.pythonanywhere.com/ </a>
 example = '''problem = 1.71
 0.6274*1.00e3/(2.205*2.54^3)
 a_textbook = 17.4
+
+problem = Units
+t1 = 180 s
+t2 = 4 min
+t_sum = t1 + t2
+
+problem = SigFigs Multiply
+a_3sigfig = 2.63
+a_5sigfig = 2.6300
+b_4sigfig = 0.3128
+c_less = a_3sigfig * b_4sigfig
+c_more = a_5sigfig * b_4sigfig
+
+problem = SigFigs Add
+a_3sigfig = 2.63
+a_5sigfig = 2.6300
+b_4sigfig = 0.3128
+c_less = a_3sigfig + b_4sigfig
+c_more = a_5sigfig + b_4sigfig
 
 problem = Addition
 a = 5.1 s
@@ -295,6 +329,20 @@ M_Na = 22.9897 g/mol
 M_Cl = 35.45g/mol
 M_N = 14.007 g/mol
 N_A = 6.02214E23 /mol
+
+problem = languages
+# Chemical equation
+# 化学方程式
+# Химическое уравнение
+# 化学反応式
+# Reaktionsgleichung
+# 화학반응식
+# Ecuación química
+# إنشاء حسابد خول
+# Równanie reakcji
+# Phương trình hóa học
+! O2(g) + 2H2(g) -> 2H2O(g)
+
 
 problem = 1.87
 percent = 1/100
@@ -335,6 +383,7 @@ M[O] = 15.9994 g/mol
 M[H] = 1.00794 g/mol
 M[CO2] = M[C] + 2 * M[O]
 M[H2O] = 2 * M[H] + M[O]
+#<div class="page-break"></div>
 #calculation
 n[CO2] = m[CO2] / M[CO2]
 n[C] = n[CO2]

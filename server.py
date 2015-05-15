@@ -52,7 +52,7 @@ class index:
         mobile = ("ipad" in browser or "iphone" in browser or "ipod" in browser)
         if "ipod" in browser or "iphone" in browser or "android" in browser:
             mobile = "ipod"
-        return newform("", "", "", known, "", mobile, False)
+        return newform("", "", "", known, "", mobile, False, "")
 
 
     def POST(self):
@@ -68,20 +68,22 @@ class index:
         try:
             state = web.input()
             if state['sub'] == "reset":
-                return newform("", "", "", "", "", mobile, False)
+                return newform("", "", "", "", "", mobile, False, "")
         except:
-            return newform("", "", "", "", "", mobile, False)
+            return newform("", "", "", "", "", mobile, False, "")
 
         oldsymbols = state['memory']
         logbook = state['logbook']
-        if state['sub'] == "print":
+        inputlog = state['inputlog']
+        if state['sub'] == "export":
             allsymbols, symbollist = gather_symbols(oldsymbols)
-            return printableLog(allsymbols, symbollist, logbook)
+            return printableLog(allsymbols, symbollist, logbook, inputlog)
         if state['sub'] == "help":
             return helpform(mobile)
         commands = state['commands']
+        inputlog = inputlog + "\n" + commands
         outp, logp, mem, known, mobile, oneline = calc(oldsymbols, commands, mobile)
-        return newform(outp, logp, mem, known, logbook, mobile, oneline)
+        return newform(outp, logp, mem, known, logbook, mobile, oneline, inputlog)
 
 
 class static:
@@ -106,7 +108,7 @@ class example:
         mobile = ("ipad" in browser or "iphone" in browser or "nexus" in browser)
         if "ipod" in browser or "iphone" in browser:
             mobile = "ipod"
-        return newform("", "", "", known, "", mobile, False, prefill=prefill)
+        return newform("", "", "", known, "", mobile, False, "", prefill=prefill)
 
 class preload:
     """
@@ -130,8 +132,7 @@ class preload:
         logbook = ""
         commands = "\n".join(["__%s__ = 1" % switch for switch in state['switch'].split("*")])
         outp, logp, mem, known, mobile, oneline = calc(oldsymbols, commands, mobile)
-        return newform(outp, logp, mem, known, logbook, mobile, oneline)
-
+        return newform(outp, logp, mem, known, logbook, mobile, oneline, "")
 
 # comment out these two lines if you want to use another framework
 if __name__ == "__main__":

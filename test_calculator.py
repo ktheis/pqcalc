@@ -2,7 +2,13 @@ __author__ = 'Karsten Theis'
 
 import unittest
 import calculator
-from calculator import scan, make_paired_tokens
+from calculator import scan, make_paired_tokens, fixoperator
+
+
+class Classify_TestCase(unittest.TestCase):
+
+    def test_calculation(self):
+        pass
 
 class Scan_TestCase(unittest.TestCase):
 
@@ -45,7 +51,7 @@ class Scan_TestCase(unittest.TestCase):
 
     def test_mangled(self):
         with self.assertRaises(calculator.CalcError):
-            scan("5 + %&$")
+            scan("5 + [[")
 
 
 class Paired_Tokens_TestCase(unittest.TestCase):

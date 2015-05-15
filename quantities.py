@@ -141,7 +141,7 @@ class Q(object):
                     self.depth -= 1
         return self.depth
 
-    def steps(self, level, writer, subs=None):
+    def steps(self, level, writer, subs=None, flaigs=dict()):
         '''
         :param level: -1: task, 0: value, 1..n: work
         :param writer: either ascii or latex
@@ -151,7 +151,7 @@ class Q(object):
         if level < 0 and not self.provenance:
             return writer(self, showvalue=False)
         if not level or level > self.depth:
-            return writer(self, guard=0 if (level <= 1 or not self.provenance) else 1)
+            return writer(self, flags=flaigs, guard=0 if (level <= 1 or not self.provenance) else 1)
         children = []
         name = self.name
         for index, q in enumerate(self.provenance):
@@ -242,7 +242,8 @@ class Q(object):
         except ValueError:
             raise_QuantError("arithmetic problem", "%s ^ %s", (self, other))
         name = "%s ^ %s"
-        return Q(number, name, units, self.uncert/self.number * number * abs(other.number), self.prefu, (self, other))
+        uncert = abs(self.uncert/self.number * number * other.number) + abs(other.uncert * math_log(abs(self.number)) * number)
+        return Q(number, name, units, uncert, self.prefu, (self, other))
 
 
 def ascii_units(list1):
@@ -259,8 +260,7 @@ def latex_units(list1):
 def ascii_qvalue (q, guard=0):
     """Formats quantities as number times a fraction of units, all with positive exponents"""
     value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
-    numbertext = ascii_number(value, q.sigfig, q.uncert * value/q.number if q.number else 0.0)
-    # numbertext = ascii_number(value, q.sigfig + guard)
+    numbertext = ascii_number(value, q.sigfig + guard)
     if len(neglist) == 1 and neglist[0][1] == 1:
         negtext = "/" + neglist[0][0]
     elif neglist:
@@ -277,7 +277,11 @@ def ascii_qvalue (q, guard=0):
 def latex_qvalue (q, guard=0, uncert=False, hideunits=False, hidenumbers=False):
     value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
     if uncert:
-        numbertext = latex_number(ascii_number(value, q.sigfig, q.uncert * value/q.number))
+        try:
+            uc = q.uncert * value/q.number
+        except:
+            uc = 0
+        numbertext = latex_number(ascii_number(value, q.sigfig, uc))
     elif hidenumbers:
         numbertext = "\_\_\_\_\_\_\_\_\_\_\_\_"
     else:
@@ -295,37 +299,16 @@ def latex_qvalue (q, guard=0, uncert=False, hideunits=False, hidenumbers=False):
     return numbertext + "\\  " + negtext % latex_units(poslist)
 
 
-def ascii_writer(q, showvalue=True, guard=0):
+def ascii_writer(q, showvalue=True, guard=0, flags=dict()):
     if not showvalue and q.name:
         return q.name
     return ascii_qvalue(q, guard)
 
 
-def latex_writer(q, showvalue=True, guard=0):
+def latex_writer(q, showvalue=True, guard=0, flags=dict()):
     if not showvalue and q.name:
         return latex_name(q.name)
-    #  return repr(q)
-    return latex_qvalue(q, guard)
-
-def latex_writer2(q, showvalue=True, guard=0):
-    if not showvalue and q.name:
-        return latex_name(q.name)
-    #  return repr(q)
-    return latex_qvalue(q, guard, uncert=True)
-
-def latex_writer3(q, showvalue=True, guard=0):
-    if not showvalue and q.name:
-        return latex_name(q.name)
-    #  return repr(q)
-    return latex_qvalue(q, guard, hideunits=True)
-
-
-def latex_writer4(q, showvalue=True, guard=0):
-    if not showvalue and q.name:
-        return latex_name(q.name)
-    #  return repr(q)
-    return latex_qvalue(q, guard, hidenumbers=True)
-
+    return latex_qvalue(q, guard, **flags)
 
 def try_all_derived(SIunits, derived):
     """Score the benefits of replacing SI units by any of the preferred derived units.
@@ -364,6 +347,12 @@ def unit_string(value, units, prefu={'M', 'L', 'J', 'C', 'V', 'N', 'W', 'Pa'}):
         for i, used_in_derived in enumerate(unitquant[d].units):
             SIunits[i] -= used_in_derived * sign
         value /= unitquant[d].number ** sign
+    if derived.get('V') == 0 and derived.get('kJ') == 0 and SIunits[0] == 1 and SIunits[3] == 1:
+        derived['V'] -= 1
+        derived['kJ'] += 1
+        SIunits[0] = 0
+        SIunits[3] = 0
+        value /= 1000
     allunits = dict([(x,derived[x]) for x in derived if derived[x]])
     DUS = [du for du in allunits if du in derived]
     for DU in DUS:
@@ -661,7 +650,11 @@ def ln(a):
 
 
 def quad(A, B, C):
-    discriminant = B ** Q(2) - Q(4) * A * C
+    BB = B ** Q(2)
+    AC4 = Q(4) * A * C
+    if BB.units != AC4.units:
+        raise_QuantError("B * B has to have the same units as 4 * A * C ", "quad(%s, %s, %s)", (A, B, C))
+    discriminant = BB - AC4
     if discriminant.number < 0:
         raise_QuantError("discriminant %f is negative, can't take its root" % discriminant.number, "quad(%s, %s, %s)",
                          (A, B, C))
@@ -686,6 +679,7 @@ def quadn(A, B, C):
 
 
 def alldigits(a):
+    raise_QuantError("%f (+-) %f, preferred units are %s" % (a.number, a.uncert, a.prefu), "alldigits(%s)", (a,))
     return Q(a.number, "alldigits(%s)", a.units, a.uncert / 100000., a.prefu, [a])
 
 
