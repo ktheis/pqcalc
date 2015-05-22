@@ -39,10 +39,18 @@ def quant_selectors(known):
     choices = known.split("\n")
     return fill_selector("quantities", [term.rsplit("=",1)[0] for term in choices])
 
+example_template = '''
+<h3>How to use PQcalc</h3>
+<p>PQcalc is an online calculator for students learning science in college.
+To learn how to use it by example, click on any of the examples below, look at the
+input, then press go and study the output. A more comprehensive documentation of
+the program is  <a href="http://www.bioinformatics.org/pqcalc/manual">here</a>.
+<h3>Example calculations</h3><pre>%s</pre>
+'''
 
 
 def helpform(mob):
-    return  "<h3>Example calculations</h3><pre>%s</pre>" % exhtml
+    return example_template % exhtml
 
 def newform(outp, logp, mem, known, log, mob, oneline, inputlog, prefill="", linespace="100%", logo=""):
     mem = "\n".join(mem)
@@ -67,8 +75,8 @@ def newform(outp, logp, mem, known, log, mob, oneline, inputlog, prefill="", lin
     return template % data
 
 
-def printableLog(symbols, symbollist, logbook, inputlog):
-    known = "\n".join([s + "=" + symbols[s].__str__() for s in symbollist])
+def printableLog(symbols, logbook, inputlog):
+    known = "\n".join([s + "=" + symbols[s].__str__() for s in symbols])
     return printable_view % (known, inputlog, logbook)
 
 
@@ -184,7 +192,7 @@ template = '''<html>
             %(output)s
             <div class="page-break"></div>
             <form enctype="multipart/form-data" action="." method="post">
-            <textarea autofocus rows="%(rows)d" cols="50" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
+            <textarea autofocus rows="%(rows)d" cols="42" id="commands" name="commands" %(keyboard)s  type="number" autocapitalize="off"
               autocomplete="on" spellcheck="false" style="font-weight: bold; font-size: 12pt;"
               >%(prefill)s</textarea> <p>
             <input type="submit" name="sub" value="  go  ">
@@ -346,7 +354,7 @@ problem = languages
 
 problem = 1.87
 percent = 1/100
-year = 365 * 24 hr
+year = 365 * 24 h
 input_Fertilizer = 1500. kg / year
 input_N = 10 percent * input_Fertilizer
 wash_N = 15 percent * input_N
@@ -611,10 +619,83 @@ m[AgCl]theoretical = n[AgCl]A * M[AgCl]
 m[AgCl]actual = m_prec
 yield = m[AgCl]actual / m[AgCl]theoretical
 
+problem = error in adding
+a = 5.6 km + 25.1 mol
+
+problem = error in power
+a = 5.6 ^ (25 mol)
+
+problem = error in division
+a = 5.6 / 0.0
+
+problem = error with parentheses
+a = (5 + 6))
+
+problem = error in minimum function
+a = minimum(7 M, 34 mol)
+
+problem = limitations: numeric overflow
+a = 10^10^10
+
+problem = error in square root
+#This works
+a = sqrt(2.3 mm * 4.9 km)
+#This doesn't
+a = sqrt(2.3 mm * 4.13 g)
+
+problem = limitations: imaginary numbers
+#PQcalc works with real numbers, only
+a = sqrt(-1)
+
+problem = error in log function
+a = log(0.34 mol/L)
+
+problem = error in log function
+a = log(-23.8)
+
+problem = tutorial
+# You are asked to make about 80 mL of a 0.150 mol/L aqueous solution of magnesium chloride by mixing the pure solid with water.
+V_requested = 80 mL
+
+[MgCl2] = 0.150 mol/L
+
+# First, calculate how much [MgCl2] you need.
+n[MgCl2] = [MgCl2] V_requested
+
+# Because we want to use a balance to measure the pure solid, we need to calculate the mass from the chemical amount.
+
+M[MgCl2] = 95.211 g/mol
+
+m[MgCl2]exact = n[MgCl2] M[MgCl2]
+
+# You took a bit more than the required mass and placed 1.213 g of [MgCl2] into a 100 mL graduated cylinder.
+#
+# To which volume do you have to add water to obtain a 0.150 M solution?
+
+V_exact = m[MgCl2]exact / (M[MgCl2] [MgCl2] )
+
+m[MgCl2]actual = 1.213g
+
+V_actual = m[MgCl2]actual / (M[MgCl2] [MgCl2])
+
+
+# Another, simpler way of calculating: Instead of 1.143 g, you have 1.213 g, so you have to add more  water to obtain a proportionally larger volume
+
+V_made_2 = V_exact * m[MgCl2]actual / m[MgCl2]exact
+
+problem = integrate images
+
+#How does water form from the elements, and what is the chemical equation?
+#{"http://bit.ly/1PvpnpD" width ="160"}
+!H2 + O2 -> 2H2O
+
 '''
 
 examples = example.split('problem = ')
-exdict = {}
+from collections import OrderedDict
+
+
+exdict = OrderedDict()
 exhtml = []
 for ex in examples:
     if "\n" not in ex:

@@ -20,6 +20,7 @@ Author: Karsten Theis (ktheis@westfield.ma.edu)
 """
 from __future__ import division
 
+import math
 from math import log10 as math_log10
 from math import log as math_log
 from math import exp as math_exp
@@ -107,6 +108,8 @@ class Q(object):
         if self.name in unitquant and self.__dict__ == unitquant[self.name].__dict__:
             return "Q('%s')" % self.name
         self.rnumber = repr(self.number)
+        if self.rnumber.startswith("inf"):
+            raise OverflowError(self.rnumber)
         self.runcert = repr(self.uncert)
         if self.provenance:
             return "Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s, %(prefu)s, %(provenance)s)" % self.__dict__
@@ -241,6 +244,8 @@ class Q(object):
             number = self.number ** other.number
         except ValueError:
             raise_QuantError("arithmetic problem", "%s ^ %s", (self, other))
+        except OverflowError:
+            raise_QuantError("overflow: value too high", "%s ^ %s", (self, other))
         name = "%s ^ %s"
         uncert = abs(self.uncert/self.number * number * other.number) + abs(other.uncert * math_log(abs(self.number)) * number)
         return Q(number, name, units, uncert, self.prefu, (self, other))
@@ -457,6 +462,8 @@ def number2quantity(text):
         text = before + after
         mult = float(uncert)
     f = float(text)
+    if math.isinf(f) and math.isnan(f):
+        raise OverflowError(text)
     text = text.lower().lstrip("-0")
     dot = False
     expo = 0

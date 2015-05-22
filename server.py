@@ -36,7 +36,7 @@ import sys
 
 sys.path.append("/var/www")
 
-from calculator import calc, gather_symbols
+from calculator import calc, State
 from form import newform, printableLog, helpform
 
 
@@ -76,14 +76,14 @@ class index:
         logbook = state['logbook']
         inputlog = state['inputlog']
         if state['sub'] == "export":
-            allsymbols, symbollist = gather_symbols(oldsymbols)
-            return printableLog(allsymbols, symbollist, logbook, inputlog)
+            allsymbols = State(oldsymbols, mobile)
+            return printableLog(allsymbols, logbook, inputlog)
         if state['sub'] == "help":
             return helpform(mobile)
         commands = state['commands']
-        inputlog = inputlog + "\n" + commands
-        outp, logp, mem, known, mobile, oneline = calc(oldsymbols, commands, mobile)
-        return newform(outp, logp, mem, known, logbook, mobile, oneline, inputlog)
+        outp, logp, mem, known, oneline, good_input,linespace = calc(oldsymbols, commands, mobile)
+        inputlog = inputlog + "\n" + good_input
+        return newform(outp, logp, mem, known, logbook, mobile, oneline, inputlog, linespace=linespace)
 
 
 class static:
@@ -131,8 +131,8 @@ class preload:
         oldsymbols = ""
         logbook = ""
         commands = "\n".join(["__%s__ = 1" % switch for switch in state['switch'].split("*")])
-        outp, logp, mem, known, mobile, oneline = calc(oldsymbols, commands, mobile)
-        return newform(outp, logp, mem, known, logbook, mobile, oneline, "")
+        outp, logp, mem, known, mobile, oneline, linespace = calc(oldsymbols, commands, mobile)
+        return newform(outp, logp, mem, known, logbook, mobile, oneline, "", linespace=linespace)
 
 # comment out these two lines if you want to use another framework
 if __name__ == "__main__":
