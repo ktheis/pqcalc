@@ -646,7 +646,7 @@ def minimum(*a):
     units = a[0].units
     for q in a:
         if units != q.units:
-            raise_QuantError("Can't compare quantities with different dimensions", "average(%s, ... %s)", (a[0],q))
+            raise_QuantError("Can't compare quantities with different dimensions", "minimum(%s, ... %s)", (a[0],q))
     m = min(*a, key=lambda x: x.number)
     return Q(m.number, "\\mathrm{minimum}(%s)" % ", ".join(["%s"] * len(a)), m.units, m.uncert, m.prefu, tuple(a))
 
@@ -655,7 +655,7 @@ def maximum(*a):
     units = a[0].units
     for q in a:
         if units != q.units:
-            raise_QuantError("Can't compare quantities with different dimensions", "average(%s, ... %s)", (a[0],q))
+            raise_QuantError("Can't compare quantities with different dimensions", "maximum(%s, ... %s)", (a[0],q))
     m = max(*a, key=lambda x: x.number)
     return Q(m.number, "\\mathrm{minimum}(%s)" % ", ".join(["%s"] * len(a)), m.units, m.uncert, m.prefu, tuple(a))
 

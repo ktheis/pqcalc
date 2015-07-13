@@ -615,10 +615,10 @@ m[AgCl]actual = m_prec
 yield = m[AgCl]actual / m[AgCl]theoretical
 
 problem = units with non-integer powers
+# Inspired by http://www.chem.ox.ac.uk/vrchemistry/rates/newhtml/order3.htm
 #The reaction of chlorine with chloroform to yield carbon tetrachloride and hydrogen chloride is
 ! Cl2 + CHCl3 -> CCl4 + HCl
-# The observed rate expression for production of HCl is first order in chloroform and half order in chlorine
-# If the rate is 0.183 M/s and the concentrations of chloroform and chlorine are 0.400 M and 1.52 mM, respectively, what is the rate constant of the reaction?
+# The observed rate expression for production of HCl is first order in chloroform and half order in chlorine. If the rate is 0.183 M/s and the concentrations of chloroform and chlorine are 0.400 M and 1.52 mM, respectively, what is the rate constant of the reaction?
 rate = 0.183 M/s
 [Cl2] = 1.52 mM
 [CHCl3] = 0.400 M
