@@ -28,6 +28,7 @@ import web
 urls = (
     '/', 'index',
     '/custom', 'preload',
+    '/homework/(.*)', 'homework',
     '/(js|css|png|ico)/(.*)', 'static',
     '/example(.*)', 'example'
 )
@@ -36,9 +37,9 @@ import sys
 
 sys.path.append("/var/www")
 
-from calculator import calc, State
+from calculator import calc, State, markup_comments
 from form import newform, printableLog, helpform
-
+from ChemEq import talk_to_student
 
 class index:
     """
@@ -85,9 +86,11 @@ class index:
         inputlog = inputlog + "\n" + good_input
         return newform(outp, logp, mem, known, logbook, mobile, oneline, inputlog, linespace=linespace)
 
+from quantities import Units as Units
 
 class static:
     def GET(self, media, file):
+        print (media, file)
         try:
             f = open('static/' + file, 'r')
             return f.read()
@@ -131,7 +134,7 @@ class preload:
         oldsymbols = ""
         logbook = ""
         commands = "\n".join(["__%s__ = 1" % switch for switch in state['switch'].split("*")])
-        outp, logp, mem, known, mobile, oneline, linespace = calc(oldsymbols, commands, mobile)
+        outp, logp, mem, known, oneline, good_input,linespace = calc(oldsymbols, commands, mobile)
         return newform(outp, logp, mem, known, logbook, mobile, oneline, "", linespace=linespace)
 
 # comment out these two lines if you want to use another framework

@@ -52,7 +52,7 @@ import quantities
 from quantities import Q, Units, QuantError, latex_name, unitquant
 from re import Scanner, UNICODE, match
 from form import exdict
-
+from fractions import Fraction
 
 class CalcError(ArithmeticError): pass
 
@@ -69,6 +69,7 @@ def calc(memory, commands, mob):
     command_list = commands.replace('\r', '').split("\n")
     try:
         for command in command_list:
+            #print ("%s" % command)
             input_type, name, expression = classify_input(command, state)
             if input_type == Calculation:
                 name = check_name(name, state)
@@ -98,7 +99,7 @@ class State(OrderedDict):
         Loads quantities from previous calculations by evaluating their repr()s
 
         :param memory: String of repr()s
-        :return:(dict of symbols, ordered list of symbols)
+        :stores OrderedDict of symbols, output, logput
         """
         OrderedDict.__init__(self)
         self.flags = set()
@@ -155,7 +156,7 @@ def classify_input(a, state):
     :param state: contains known quantities as ordered dict, along with flags and output
     :return: a tuple (type of input, symbol name, expression/units)
 
-    Empty, Calculation, ConversionIn, ConversionUsing, Comment = range(5)
+    Empty, Calculation, ConversionIn, ConversionUsing, Comment, Flags = range(6)
 
     >>> classify_input(' ', State())
     (0, None, None)
@@ -181,7 +182,7 @@ def classify_input(a, state):
         state.printit("<br>")
     state.logit("<br>")
 
-    if a[0] in "!#":
+    if a[0] in "!#@":
         return Comment, None, None
     a = a.strip()
     if a.startswith('__'):
@@ -238,7 +239,7 @@ Special rule #2: You can't use names already used for units or functions. If you
 
 def interpret(t, state):
     '''
-    Process input mathematical express into a valid Python expression and return the result of evaluating it. This is
+    Process input mathematical expression into a valid Python expression and return the result of evaluating it. This is
     a four step process. First, the string is broken into tokens by scan(), then grouped into pairs of operators and
     values by make_paired_tokens(), then turned into a valid Python expression by create_Python_expression, and finally
     evaluated with eval() to yield a quantity Q().
@@ -298,13 +299,18 @@ def interpret(t, state):
     try:
         expression = create_Python_expression(paired, state)
         q = eval(expression)
+################ EVAL EVAl EVAL #######################
         if type(q) != Q:
-            raise CalcError('<div style="color: red;">misused comma?</div><br>')
+            print(expression)
+            print(q)
+            raise CalcError('<div style="color: red;">misused comma? %s</div><br>' % expression)
         return q
     except SyntaxError as err:
         raise CalcError('<br>%s<br><br><div style="color: red;">Mangled math: %s</div><br>' % (t, err))
     except OverflowError as duh:
         raise CalcError('<br>%s<br><br><div style="color: red;">Math overflow: %s</div><br>' % (t, duh))
+    except AttributeError as duh:
+        raise CalcError('<br>%s<br><br><div style="color: red;">Comma again?: %s</div><br>' % (t, duh))
 
 
 def scan(t):
@@ -330,14 +336,6 @@ def scan(t):
     tokens, remainder = scanner.scan(t + " ")
     if remainder:
         raise CalcError("got stuck on |%s|" % remainder)
-    '''
-    parentheses = 0
-    for ttype, ttext in tokens:
-        if ttype == "O":
-            parentheses += ttext.count("(") - ttext.count(")")
-    if parentheses:
-        raise CalcError("Parentheses don't match: %s" % repr(tokens))
-    '''
     flatop = (c for ttyp, ttex in tokens if ttyp == 'O' for c in ttex)
     paren = 0
     for c in flatop:
@@ -360,6 +358,11 @@ def scan(t):
                 tokens[i] = "U", ttext
             elif ttext in quantities.functions:
                 tokens[i] = "F", ttext
+    infunc = []
+    paren = 0
+    for i, (ttype, ttext) in enumerate(tokens):
+        if ttype == 'F':
+            infunc.append(paren)
     return tokens
 
 
@@ -443,7 +446,21 @@ def make_paired_tokens(raw_tokens):
             tokens.append(["Z", operator, ""])
             break
         tokens.append([ttype, operator.replace("^", "**"), ttext])
-    return tokens
+    return fixfractions(tokens)
+
+def fixfractions(tokens):
+    newtokens = []
+    while tokens:
+        # ['N','...(','integer'],['N','/','integer'],['...',')','...]
+        if (len(tokens) > 2 and tokens[0][0] == 'N' and tokens[1][0] == 'N' and tokens[0][1].endswith('(') and tokens[2][1].startswith(')') and tokens[1][1] == '/' and
+            '.' not in tokens[0][2] and '.' not in tokens[1][2] and int(tokens[1][2]) != 0):
+                fractoken = ['N', tokens[0][1], '%s / %s' % (tokens[0][2], tokens[1][2])]
+                newtokens.append(fractoken)
+                tokens.pop(0)
+                tokens.pop(0)
+        else:
+            newtokens.append(tokens.pop(0))
+    return newtokens
 
 
 def fixoperator(operator, tokens):
@@ -507,6 +524,7 @@ def create_Python_expression(paired_tokens, state):
     '''
 
     result = []
+    complaint = '__tutor__' in state.flags and any(x[0]=='I' for x in paired_tokens) and any(x[0]=='U' for x in paired_tokens)
     while True:  # consume "Z", "I", "F", "U", "N" in paired_tokens
         ttype, operator, ttext = paired_tokens.pop(0)
         if ttype in "ZIF":
@@ -519,7 +537,7 @@ def create_Python_expression(paired_tokens, state):
                 if ttext in state:
                     result.append(state[ttext].__repr__())
                 else:
-                    raise CalcError("unknown symbol %s encountered" % ttext)
+                    raise CalcError("unknown symbol |%s| encountered" % ttext)
             continue
         # ttype in "UN", i.e. either unit or number
         quant = ["Q('%s')" % ttext]
@@ -531,7 +549,7 @@ def create_Python_expression(paired_tokens, state):
             result.append(operator)
             result.append(quant[0])
             continue
-        quant_text, paired_tokens = interpret_N_U_cluster(quant, paired_tokens)
+        quant_text, paired_tokens = interpret_N_U_cluster(quant, paired_tokens, complaint)
         result.append('%s%s' % (operator, quant_text))
     expression = "".join(result)[:-1]
     if expression.startswith("*"):
@@ -539,7 +557,7 @@ def create_Python_expression(paired_tokens, state):
     return expression
 
 
-def interpret_N_U_cluster(quant, orig_paired):
+def interpret_N_U_cluster(quant, orig_paired, complaint):
     '''
     Find quantity introduced on the fly and evaluate as Q(). This is done to avoid cluttering the output with
     trivial calculations such as 2 * mol / L = 2 mol/L. This step also has consequences for order of operation, as
@@ -565,6 +583,7 @@ def interpret_N_U_cluster(quant, orig_paired):
     '''
 
     paired = orig_paired[:]
+    complaint = complaint and any('U' in x for x in orig_paired)
     notyetclosed = None
     openp = 0
     for i, (ttype, op, ttext) in enumerate(paired):
@@ -598,10 +617,14 @@ def interpret_N_U_cluster(quant, orig_paired):
         paired[end][1] = paired[end][1][i + 1:]
     try:
         q = eval(quantstr)
-    except SyntaxError as err:
-        raise CalcError('<br>%s<br><br><div style="color: red;">Mangled math: %s</div><br>' % (quantstr, err))
+    except SyntaxError:
+        raise CalcError('<br>%s<br><br><div style="color: red;">Mangled math</div><br>' % quantstr)
     except OverflowError as duh:
         raise CalcError('<br>%s<br><br><div style="color: red;">Math overflow: %s</div><br>' % (quantstr, duh))
+    except AttributeError as duh:
+        raise CalcError('<br>%s<br><br><div style="color: red;">Bad comma?: %s</div><br>' % (quantstr, duh))
+    if complaint:
+        raise CalcError('<br>%s<br><br><div style="color: red;">Please give all quantities a name before using them in a calculation</div><br>' % q)
 
     q.name = ""
     q.provenance = []
@@ -637,6 +660,10 @@ def register_result(result0, sym, state):
     if sym in state:
         state.printit('<div style="color: green;">Warning: Updated value of %s</div><br>' % (format_identifier(sym)))
     state[sym] = result0
+    if '__fracunits__' not in state.flags:
+        for u in result0.units:
+            if u.denominator != 1:#oddly, ints have and floats don't
+                state.printit('<div style="color: green;">Warning: Units have non-integer exponents %s</div><br>' % u)
     if "__checkunits__" in state.flags:
         if len(sym) == 1 or sym[1] in "_0123456789[" or sym[0] == "[":
             if sym[0] in typicalunits and result0.units != typicalunits[sym[0]][0]:
@@ -686,12 +713,18 @@ def show_work(result, sym, flags, error=False, addon="", skipsteps=False):
             "exp(%s)": "e^{%s}",
             "log(%s)": "\\mathrm{log}(%s)",
             "ln(%s)": "\\mathrm{ln}(%s)",
+            "sin(%s)": "\\mathrm{sin}(%s)",
+            "cos(%s)": "\\mathrm{cos}(%s)",
+            "tan(%s)": "\\mathrm{tan}(%s)",
             "sqrt(%s)": "\\sqrt{%s}",
             "quadn(%s": "\\mathrm{quadn}(%s",
             "quadp(%s": "\\mathrm{quadp}(%s",
             "average(%s": "\\mathrm{average(%s",
             "minimum(%s": "\\mathrm{minimum(%s",
-            "alldigits(%s)": "\\mathrm{alldigits}(%s)",
+            "maximum(%s": "\\mathrm{maximum(%s",
+            "absolute(%s": "\\mathrm{absolute(%s",
+            "moredigits(%s)": "\\mathrm{moredigits}(%s)",
+            "uncertainty(%s)": "\\mathrm{uncertainty}(%s)",
     } if math else None
     d = result.setdepth()
     if math:
@@ -720,7 +753,6 @@ def show_work(result, sym, flags, error=False, addon="", skipsteps=False):
                 output.append(template2 % (result.steps(dd, writer, subs, flaugs), addon))  # intermediate steps
     result_str = result.steps(0, writer, subs, flaugs)  # result
     if result_str != task and not error and not (flaugs['hidenumbers'] and d == 0):
-        # print (result, task, math)
         logput.append(template2 % (result_str, addon))
         output.append(template2 % (result_str, addon))
     if math and not '__latex__' in flags:
@@ -780,10 +812,10 @@ def create_comment(a, state):
         state.printnlog(a)
         return
     if a.startswith("!"):
-        state.printnlog('<br><span style="color: blue;font-size: 14pt;">\\(\\ce{\\ %s}\\)<br></span>' % a[1:])
+        state.printnlog('<br><span style="color: maroon;font-size: 14pt;">\\(\\ce{\\ %s}\\)<br></span>' % a[1:])
     else:
         formatted = markup_comments(a[1:])
-        state.printnlog('<div style="color: blue; font-size: 11pt;">%s</div>' % formatted)
+        state.printnlog('<div style="color: cornflowerblue; font-size: 11pt;">%s</div>' % formatted)
 
 
 def markup_comments(line):
@@ -798,7 +830,7 @@ def markup_comments(line):
         if charlist[0] == "[":
             interpretation.append(consume_formula(charlist))
             continue
-        if charlist[0] == "{":
+        if charlist[0] == "{" and not interpretation:
             interpretation.append(consume_image(charlist))
             continue
         if charlist[0] == "_":
@@ -823,7 +855,7 @@ def consume_image(charlist):
 
 def consume_comment(charlist):
     cl2 = []
-    while charlist and not charlist[0] in "[_{":
+    while charlist and not charlist[0] in "[_":
         c = charlist.pop(0)
         if c == " " and cl2 and cl2[-1] == ' ':
             cl2.append("&nbsp;")
@@ -892,7 +924,7 @@ def deal_with_errors(err, a, state):
         raise err
 
 
-task = '''for i in range(10): calc("","dd = exp(45.34) / log(6.9654) \\n yy = 87 mg/uL", False)'''
+task = '''for i in range(100000): calc("","dd = exp(45.34) / log(6.9654) \\n yy = 87 mg/uL", False)'''
 
 
 def test_examples():
@@ -901,10 +933,12 @@ def test_examples():
         print('#          %-60s#' % ex)
         print('########################################################################')
         commands = exdict[ex]
-        output, _, memory, _, _, _ = calc("", commands, 'ipud')
+        print (commands)
+    # return output, logput, memory, known, mob, oneline, linespace
+
+        output, _, memory, _, _, _, _ = calc("", commands, 'ipud')
         for line in output[1:]:
             print(line)
-
 
 def profile_program():
     import cProfile
@@ -914,11 +948,13 @@ def profile_program():
 
 
 if __name__ == "__main__":
+    profile_program()
+    calc('', 'a = 10^10^10', 'ipud')
     test_examples()
     commands = raw_input(">>> ")
     memory = ""
     while True:
-        output, _, memory, _, _ = calc(memory, commands, 'ipud')
+        output, _, memory, _, _, _, _ = calc(memory, commands, 'ipud')
         for line in output[1:]:
             print(line)
         memory = '\n'.join(memory)

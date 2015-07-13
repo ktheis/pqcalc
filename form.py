@@ -30,7 +30,7 @@ function_list.extend(["using  ", "in  "])
 function_selector = fill_selector("functions", function_list, backup=1)
 
 # special symbol selector, pre-baked
-symbol_list = ["μ", "π","ℳ","ΔᵣG°′","αβγδεζησχ","∞∡ℏ","äöüßø", "ΓΘΛΦΨ"]
+symbol_list = ["μ", "π","ν％ℳ","ΔᵣG°′","αβγδεζησχ","∞∡ℏ","äöüßø", "ΓΘΛΦΨ"]
 symbol_selector = fill_selector("symbols", symbol_list)
 
 def quant_selectors(known):
@@ -86,15 +86,13 @@ head = '''<head>
 <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width; initial-scale=0.8;">
 
-<link rel="shortcut icon" href="/ico/favicon.ico"
-<link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
-<script type="text/javascript" src="/js/keyboard.js" charset="UTF-8"></script>
-<script type="text/x-mathjax-config">
-  MathJax.Hub.Config({ TeX: { extensions: ["mhchem.js"] }});
-</script>
+<link rel="shortcut icon" href="/ico/favicon.ico">
 
 <script type="text/javascript"
   src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({ TeX: { extensions: ["mhchem.js"] }});
 </script>
 
 <script type="text/javascript">
@@ -248,9 +246,6 @@ template_oneline = '''<html>
 printable_view = '''<html>
 <head>
 <meta name="format-detection" content="telephone=no">
-
-<link rel="stylesheet" type="text/css" href="/css/keyboard.css" media="all" />
-<script type="text/javascript" src="/js/keyboard.js" charset="UTF-8"></script>
 
 <script type="text/javascript"
   src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">

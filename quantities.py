@@ -12,7 +12,7 @@ of uncertainty (significant figures).
 
 The way significant figures are treated here is just for number formatting - all calculations are done to the
 maximum precision of python floats (~57 bits, equivalent to ~17 decimal digits). There is a special function
-"alldigits" to retrieve the full internal representation of the number.
+"moredigits" to retrieve the full internal representation of the number.
 
 The online calculator hosted at http:\\\\ktheis.pythonanywhere.com uses this code.
 
@@ -24,8 +24,12 @@ import math
 from math import log10 as math_log10
 from math import log as math_log
 from math import exp as math_exp
+from math import sin as math_sin
+from math import cos as math_cos
+from math import tan as math_tan
 from math import floor
 from math import sqrt as math_sqrt
+from fractions import Fraction
 
 SIunit_symbols = ["A", "kg", "m", "s", "mol", "K", "Cd", "$"]
 
@@ -46,7 +50,7 @@ class Units(tuple):
 
     def __repr__(self):
         symbols = ["A", "kg", "m", "s", "mol", "K", "Cd", "dollar"]
-        return "Units(" + ",".join("%s=%d" % x for x in zip(symbols, self) if x[1]) + ")"
+        return "Units(" + ",".join("%s=%s" % (x[0],repr(x[1])) for x in zip(symbols, self) if x[1]) + ")"
 
 
 unity = Units()
@@ -91,7 +95,7 @@ class Q(object):
 
         try:
             number + 1.0
-            self.number = float(number)
+            self.number = number
             self.units = Units(*units)
             self.name = name[:]
             self.prefu = set(prefu)
@@ -105,34 +109,28 @@ class Q(object):
             self.__dict__ = q.__dict__
 
     def __repr__(self):
+        if self.name:
+            self.fakename = 'somename'
+        else:
+            self.fakename = ''
         if self.name in unitquant and self.__dict__ == unitquant[self.name].__dict__:
-            return "Q('%s')" % self.name
+            return u"Q('%s')" % self.name
         self.rnumber = repr(self.number)
         if self.rnumber.startswith("inf"):
             raise OverflowError(self.rnumber)
         self.runcert = repr(self.uncert)
+        self.rname = repr(self.name)
         if self.provenance:
-            return "Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s, %(prefu)s, %(provenance)s)" % self.__dict__
+            return u"Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s, %(prefu)s, %(provenance)s)" % self.__dict__
         if self.prefu:
-            return "Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s, %(prefu)s)" % self.__dict__
+            return u"Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s, %(prefu)s)" % self.__dict__
         if self.name:
-            return "Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s)" % self.__dict__
+            rr =  u"Q(%(rnumber)s, '%(name)s', %(units)s, %(runcert)s)" % self.__dict__
+            return rr
         return u"Q(%(rnumber)s, units=%(units)s, uncert=%(runcert)s)" % self.__dict__
 
     def __str__(self):
         return ascii_qvalue(self)
-
-    @property
-    def sigfig(self):
-        try:
-            most = int(floor(math_log10(abs(self.number))))
-            sig = int(floor(math_log10(self.uncert*1.05)))
-            sigfig = most - sig + 1
-        except:
-            return 100
-        if sigfig > 0:
-            return sigfig
-        return 1
 
     def setdepth(self):
         if not hasattr(self, "depth"):
@@ -180,6 +178,8 @@ class Q(object):
         else:
             uncert = 0.0
         name = "%s * %s"
+        if hasattr(number,'denominator') and number.denominator == 1:
+            number = int(number)
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, uncert, prefu, provenance)
 
@@ -194,6 +194,13 @@ class Q(object):
             uncert = math_sqrt((self.uncert / self.number)**2 + (other.uncert / other.number)**2) * abs(number)
         else:
             uncert = 0.0
+        if not uncert:
+            try:
+                number = Fraction(self.number, other.number)
+                if number.denominator == 1:
+                    number = int(number)
+            except TypeError:
+                pass
         prefu, provenance = inherit_binary(self, other)
         return Q(number, name, units, uncert, prefu, provenance)
 
@@ -207,7 +214,13 @@ class Q(object):
 
     def __add__(self, other):
         if self.units != other.units and self.number and other.number:
-            raise_QuantError("Units in sum not compatible", "%s + %s", (self, other))
+            for s, o in zip(self.units, other.units):
+                if s == o:
+                    continue
+                elif '%g' % s == '%g' % o:
+                    continue
+                else:
+                    raise_QuantError("Units in sum have distinct exponents (%g %g)" % (s,o), "%s + %s", (self, other))
         number = self.number + other.number
         name = "%s + %s"
         prefu, provenance = inherit_binary(self, other)
@@ -226,22 +239,19 @@ class Q(object):
     def __pow__(self, other):
         if other.units != unity:
             raise_QuantError("the exponent can't have units", "%s ^ %s", (self, other))
-        if abs(other.number - round(other.number)) < 0.00000001:
-            exponent = int(round(other.number))
-            units = tuple([u * exponent for u in self.units])
-        elif self.number < 0:
-            raise_QuantError("can't raise negative number to non-integral power", "%s ^ %s", (self, other))
-        elif abs(0.5 - other.number) < 0.00000001:
-            if sum(u % 2 for u in self.units) == 0:
-                units = tuple([u / 2 for u in self.units])
-            else:
-                raise_QuantError("units have to be squares to be able to take square root", "%s ^ %s", (self, other))
-        elif self.units == unity:
+        if self.units == unity:
             units = self.units
         else:
-            raise_QuantError("can't have units for non-integral exponent", "%s ^ %s", (self, other))
+            if not hasattr(other.number, 'denominator'):
+                raise_QuantError("can't raise units to irrational exponent", "%s ^ %s", (self, other))
+            if self.number < 0:
+                raise_QuantError("can't raise negative number to non-integral power", "%s ^ %s", (self, other))
+            units = tuple([fraction_or_int(u * other.number) for u in self.units])
         try:
-            number = self.number ** other.number
+            if hasattr(self.number, 'denominator') and hasattr(other.number, 'denominator') and other.number>10:
+                number = self.number ** float(other.number)
+            else:
+                number = self.number ** other.number
         except ValueError:
             raise_QuantError("arithmetic problem", "%s ^ %s", (self, other))
         except OverflowError:
@@ -250,22 +260,38 @@ class Q(object):
         uncert = abs(self.uncert/self.number * number * other.number) + abs(other.uncert * math_log(abs(self.number)) * number)
         return Q(number, name, units, uncert, self.prefu, (self, other))
 
+def fraction_or_int(number):
+    if number.denominator == 1:
+        return int(number)
+    return number
+
+def sigfig(number, uncert):
+    try:
+        most = int(floor(math_log10(abs(number))))
+        sig = int(floor(math_log10(uncert*1.05)))
+        sigfig = most - sig + 1
+    except:
+        return 100
+    if sigfig > 0:
+        return sigfig
+    return 1
+
 
 def ascii_units(list1):
     list2 = [i[0] for i in list1 if i[1] == 1]
-    list2.extend(["%s^%d" % i for i in list1 if i[1] > 1])
+    list2.extend(["%s^%s" % i for i in list1 if i[1] != 1])
     return " ".join(list2)
 
 def latex_units(list1):
     list2 = ["\\mathrm{%s}" % i[0] for i in list1 if i[1] == 1]
-    list2.extend(["\\mathrm{%s}^{%d}" % i for i in list1 if i[1] > 1])
+    list2.extend(["\\mathrm{%s}^{%s}" % i for i in list1 if i[1] != 1])
     return "\\ ".join(list2)
 
 
 def ascii_qvalue (q, guard=0):
     """Formats quantities as number times a fraction of units, all with positive exponents"""
     value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
-    numbertext = ascii_number(value, q.sigfig + guard)
+    numbertext = ascii_number(value, sigfig(q.number,q.uncert) + guard)
     if len(neglist) == 1 and neglist[0][1] == 1:
         negtext = "/" + neglist[0][0]
     elif neglist:
@@ -281,16 +307,17 @@ def ascii_qvalue (q, guard=0):
 
 def latex_qvalue (q, guard=0, uncert=False, hideunits=False, hidenumbers=False):
     value, poslist, neglist = unit_string(q.number, q.units, q.prefu)
+    try:
+        uc = q.uncert * value/q.number
+    except:
+        uc = 0
+    sf = sigfig(value, uc)
     if uncert:
-        try:
-            uc = q.uncert * value/q.number
-        except:
-            uc = 0
-        numbertext = latex_number(ascii_number(value, q.sigfig, uc))
+        numbertext = latex_number(ascii_number(value, sf, uc))
     elif hidenumbers:
         numbertext = "\_\_\_\_\_\_\_\_\_\_\_\_"
     else:
-        numbertext = latex_number(ascii_number(value, q.sigfig + guard))
+        numbertext = latex_number(ascii_number(value, sf + guard))
     if hideunits:
         return numbertext + ("\\phantom{\\frac{km mol}{kg mol}}" if q.units != unity else "")
     if neglist:
@@ -378,7 +405,9 @@ def unit_string(value, units, prefu={'M', 'L', 'J', 'C', 'V', 'N', 'W', 'Pa'}):
             break
         quality = [(abs(math_log10(abs(value) / unitquant[c].number ** (SIunits[i] / unitquant[c].units[i]))-1.0), c) for c in choices]
         best = min(quality)[1]
-        allunits[best] = SIunits[i] / unitquant[best].units[i]
+        allunits[best] = Fraction(SIunits[i],unitquant[best].units[i])
+        if allunits[best].denominator == 1:
+            allunits[best] = int(allunits[best])
         SIunits[i] = 0
         value /= unitquant[best].number ** allunits[best]
     for u, d in zip(SIunit_symbols, SIunits):
@@ -401,7 +430,6 @@ def latex_number(ascii):
         return "%s\\frac{%s}{%s}" % (sign, n, d[:-1])
     return ascii
 
-from fractions import Fraction
 
 def ascii_number(number, sigfig, uncert=None, delta=0.0000000001):
     """Formats a number with given significant figures as a string"""
@@ -409,8 +437,16 @@ def ascii_number(number, sigfig, uncert=None, delta=0.0000000001):
     if number == 0.0 or number == 0:
         return "0"
     if (not uncert) and sigfig >= 100:
+        if hasattr(number, 'denominator'):
+            if number.denominator == 1:
+                return "%d" % int(number)
+            else:
+                if number.numerator > 0:
+                    return "(%d / %d)" % (number.numerator,number.denominator)
+                return "-(%d / %d)" % (-number.numerator,number.denominator)
         if int(number) and abs(number) - abs(int(number)) < delta:
             return "%d" % int(number)
+            raise_QuantError('What a crazy coincidence', '', None)
         a = Fraction(number).limit_denominator()
         if a.numerator:
             discr = number * a.denominator / a.numerator
@@ -461,7 +497,13 @@ def number2quantity(text):
         uncert, after = tmp.split(")")
         text = before + after
         mult = float(uncert)
-    f = float(text)
+    if '/' in text:
+        numerator, denominator = text.split('/')
+        return Q(Fraction(int(numerator),int(denominator)), "", uncert=0) # pure fraction such as 1/2
+    try:
+        f = int(text)
+    except:
+        f = float(text)
     if math.isinf(f) and math.isnan(f):
         raise OverflowError(text)
     text = text.lower().lstrip("-0")
@@ -547,46 +589,45 @@ opprio["%s - %s"] = 2
 
 
 known_units = dict(
-    A=(1.0, Units(A=1)),
-    g=(0.001, Units(kg=1)),
-    m=(1.0, Units(m=1)),
-    cm=(0.01, Units(m=1)),
-    s=(1.0, Units(s=1)),
-    mol=(1.0, Units(mol=1)),
-    K=(1.0, Units(K=1)),
-    Cd=(1.0, Units(Cd=1)),
-    N=(1.0, Units(kg=1, m=1, s=-2)),
-    J=(1.0, Units(kg=1, m=2, s=-2)),
+    A=(1, Units(A=1)),
+    g=(Fraction(1,1000), Units(kg=1)),
+    m=(1, Units(m=1)),
+    cm=(Fraction(1/100), Units(m=1)),
+    s=(1, Units(s=1)),
+    mol=(1, Units(mol=1)),
+    K=(1, Units(K=1)),
+    Cd=(1, Units(Cd=1)),
+    N=(1, Units(kg=1, m=1, s=-2)),
+    J=(1, Units(kg=1, m=2, s=-2)),
     eV=(1.602176565e-19, Units(kg=1, m=2, s=-2)),
-    V=(1.0, Units(A=-1, kg=1, m=2, s=-3)),
-    C=(1.0, Units(A=1, s=1)),
-    L=(0.001, Units(m=3)),
-    M=(1000., Units(mol=1, m=-3)),
-    Pa=(1.0, Units(kg=1, m=-1, s=-2)),
-    Hz=(1.0, Units(s=-1)),
-    atm=(101325.0, Units(kg=1, m=-1, s=-2)),
+    V=(1, Units(A=-1, kg=1, m=2, s=-3)),
+    C=(1, Units(A=1, s=1)),
+    L=(Fraction(1/1000), Units(m=3)),
+    M=(1000, Units(mol=1, m=-3)),
+    Pa=(1, Units(kg=1, m=-1, s=-2)),
+    Hz=(1, Units(s=-1)),
+    atm=(101325, Units(kg=1, m=-1, s=-2)),
     mmHg=(133.322368421, Units(kg=1, m=-1, s=-2)),
-    min=(60.0, Units(s=1)),
-    h=(3600.0, Units(s=1)),
-    d=(86400.0, Units(s=1)),
-    W=(1.0, Units(kg=1, m=2, s=-3))
+    min=(60, Units(s=1)),
+    h=(3600, Units(s=1)),
+    W=(1, Units(kg=1, m=2, s=-3))
 )
 known_units["Ω"] =(1.0, Units(A=-2, kg=1, m=2, s=-3))
 
 known_units["$"] = (1.0, Units(dollar=1))
 
 metric_prefices = dict(
-    f=1e-15,
-    p=1e-12,
-    n=1e-09,
-    u=1e-06,
-    m=1e-03,
-    k=1e+03,
-    M=1e+06,
-    G=1e+09,
-    T=1e+12)
+    f=Fraction(1,1000000000000000),
+    p=Fraction(1,1000000000000),
+    n=Fraction(1,1000000000),
+    u=Fraction(1,1000000),
+    m=Fraction(1,1000),
+    k=1000,
+    M=1000000,
+    G=1000000000,
+    T=1000000000000)
 
-metric_prefices['μ']= 1e-06
+metric_prefices['μ']= Fraction(1,1000000)
 
 unitquant = {}
 for unit in known_units:
@@ -597,12 +638,26 @@ for unit in known_units:
         unitquant[prefix + unit] = Q(known_units[unit][0] * metric_prefices[prefix], prefix + unit,
                                      known_units[unit][1], prefu=[prefix + unit])
 
+def absolute(m):
+    return Q(abs(m.number), "\\mathrm{absolute}(%s)", m.units, m.uncert, m.prefu, (m,))
 
-def minimum(a, b):
-    if a.units != b.units:
-        raise_QuantError("Can't compare two quantities with different dimensions", "minimum(%s, %s)", (a,b))
-    m = min(a, b, key=lambda x: x.number)
-    return Q(m.number, "\\mathrm{minimum}(%s, %s)", m.units, m.uncert, m.prefu, (a, b))
+
+def minimum(*a):
+    units = a[0].units
+    for q in a:
+        if units != q.units:
+            raise_QuantError("Can't compare quantities with different dimensions", "average(%s, ... %s)", (a[0],q))
+    m = min(*a, key=lambda x: x.number)
+    return Q(m.number, "\\mathrm{minimum}(%s)" % ", ".join(["%s"] * len(a)), m.units, m.uncert, m.prefu, tuple(a))
+
+
+def maximum(*a):
+    units = a[0].units
+    for q in a:
+        if units != q.units:
+            raise_QuantError("Can't compare quantities with different dimensions", "average(%s, ... %s)", (a[0],q))
+    m = max(*a, key=lambda x: x.number)
+    return Q(m.number, "\\mathrm{minimum}(%s)" % ", ".join(["%s"] * len(a)), m.units, m.uncert, m.prefu, tuple(a))
 
 
 def average(*a):
@@ -612,6 +667,15 @@ def average(*a):
             raise_QuantError("Can't average quantities with different dimensions", "average(%s, ... %s)", (a[0],q))
     m = sum(a,Q(0.0))/Q(len(a))
     return Q(m.number, "\\mathrm{average}(%s)" % ", ".join(["%s"] * len(a)), m.units, m.uncert, m.prefu, tuple(a))
+
+
+def sumover(*a):
+    units = a[0].units
+    for q in a:
+        if units != q.units:
+            raise_QuantError("Can't add quantities with different dimensions", "sumover(%s, ... %s)", (a[0],q))
+    m = sum(a,Q(0.0))
+    return Q(m.number, "\\mathrm{sumover}(%s)" % ", ".join(["%s"] * len(a)), m.units, m.uncert, m.prefu, tuple(a))
 
 
 def exp(a):
@@ -628,7 +692,7 @@ def exp(a):
 def sqrt(a):
     if a.number < 0.0:
         raise_QuantError("Won't take square root of negative number", "sqrt(%s)", (a,))
-    answer = a ** Q(0.5)
+    answer = a ** Q('1/2')
     answer.name = "sqrt(%s)"
     answer.provenance = (a,)
     return answer
@@ -654,6 +718,39 @@ def ln(a):
             raise_QuantError("Can't take ln() of quantity with units", "ln(%s)", (a,))
     except ValueError:
         raise_QuantError("The argument of ln() can't be zero or negative", "ln(%s)", (a,))
+
+
+def sin(a):
+    try:
+        if a.units == unity:
+            number = math_sin(a.number)
+            return Q(number, "sin(%s)", a.units, abs(a.uncert * math_cos(a.number)), a.prefu, (a,))
+        else:
+            raise_QuantError("Can't take sin() of quantity with units", "sin(%s)", (a,))
+    except ValueError:
+        raise_QuantError("argument of sin()?", "sin(%s)", (a,))
+
+
+def cos(a):
+    try:
+        if a.units == unity:
+            number = math_cos(a.number)
+            return Q(number, "cos(%s)", a.units, abs(a.uncert * math_sin(a.number)), a.prefu, (a,))
+        else:
+            raise_QuantError("Can't take cos() of quantity with units", "cos(%s)", (a,))
+    except ValueError:
+        raise_QuantError("argument of cos()?", "cos(%s)", (a,))
+
+
+def tan(a):
+    try:
+        if a.units == unity:
+            number = math_tan(a.number)
+            return Q(number, "tan(%s)", a.units, a.uncert * (1 + number**2), a.prefu, (a,))
+        else:
+            raise_QuantError("Can't take tan() of quantity with units", "tan(%s)", (a,))
+    except ValueError:
+        raise_QuantError("argument of tan()?", "tan(%s)", (a,))
 
 
 def quad(A, B, C):
@@ -685,9 +782,11 @@ def quadn(A, B, C):
     return quad(A, B, C)[1]
 
 
-def alldigits(a):
-    raise_QuantError("%f (+-) %f, preferred units are %s" % (a.number, a.uncert, a.prefu), "alldigits(%s)", (a,))
-    return Q(a.number, "alldigits(%s)", a.units, a.uncert / 100000., a.prefu, [a])
+def moredigits(a):
+    return Q(a.number, "moredigits(%s)", a.units, a.uncert / 100000., a.prefu, [a])
+
+def uncertainty(a):
+    return Q(a.uncert, "uncertainty(%s)", a.units, a.uncert / 100000., a.prefu, [a])
 
 
 Kelvin = Q("K")
@@ -714,8 +813,16 @@ def CtoKscale(a):
         raise_QuantError("Input temperature has to be a unit-less number", "text{CtoKscale}(%s)", (a,))
 
 
-functions = '''exp sqrt log ln quadp quadn minimum CtoKscale FtoKscale alldigits average'''.split(" ")
+functions = '''sin cos tan exp sqrt log ln quadp quadn minimum maximum absolute CtoKscale FtoKscale moredigits uncertainty average sumover'''.split(" ")
 unit_list = []
+
+if __name__ == "__main__":
+    g5 = Q(4.5, u'blaν', Units(m=1), 0.1)
+    print(g5)
+    print(str(g5))
+    rr= repr(g5)
+    print(rr)
+    print('%s' % g5.name)
 
 """ Tests and ideas
 

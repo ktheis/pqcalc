@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({ TeX: { extensions: ["mhchem.js"] }});
+</script>
+
+<script type="text/javascript"
+  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+
+<style>
+@media print {
+    h2 {page-break-before: always;}
+}</style>
+
+<style>
+h1 {text-align:center}
+h2 {
+  font-weight: bold;
+  background-color: #DDDDDD;
+  padding: .2em .5em;
+  margin-top: 1.5em;
+  border-top: 3px solid #666666;
+  border-bottom: 2px solid #999999;
+}
+</style>
+
+</head>
+<body>
+<h1>Reference manual for the PQcalc online calculator</h1>
+
+PQcalc is a program for doing arithmetic with physical quantities (the PQ in PQcalc stands for physical quantities).
+Physical quantities (i.e. measurements and data derived from measurements) have units associated with them, and most of
+them are associated with a certain degree of uncertainty. PQcalc is able to calculate with units, and has a very simple
+way of dealing with error propagation (i.e the question how uncertain a derived quantity is, given the uncertainty of the
+quantities it is derived from).
+
+<p>This reference manual goes through the basic features and capabilities of PQcalc. Additional illustration of how to
+use the program is available through the help button on the user interface. Clicking on one of the examples preloads commands
+into the input field, and clicking the go button shows the results of the commands. For detailed information about the
+way the program works, the source code is also available as a resource. This reference manual itself is structured roughly in
+the order in which calculations are setup, run and interpreted, followed by special topics relevant for teaching with the tool. Each page
+in the manual consists of a narrative, followed by a table showcasing commands input by the user on the left and program
+output on the right that illustrate a group of features discussed in the narrative.
+
+<h2>Entering quantities</h2>
+
+The basic format of entering quantities is "name = number * unit". PQcalc keeps track of significant figures, e.g. the
+2.74 is assumed to have an uncertainty of plus or minus 0.01. Numbers without decimal points are taken as exact, e.g. 2 mol.
+Units made up of more than one basic unit can be written as products and fractions, or as units raised to the power of
+a whole number, as shown in the examples below. If a name for a quantity is used a second time in a calculation, the old
+value is overwritten.
+
+<table align = "center" border="2" cellpadding="4">
+<tr><td>t1 = 45.00 s<td>
+  \(t_{1} = 45.00\  \mathrm{s}\)
+<tr><td>t2 = 45.0 s<td>
+  \(t_{2} = 45.0\  \mathrm{s}\)
+<tr><td>t3 = 45 s<td>
+  \(t_{3} = 45\  \mathrm{s}\)
+<tr><td>v = 3.4 m/s<td>
+  \(v = 3.4\  \frac{\mathrm{m}}{\mathrm{s}}\)
+<tr><td>v = 3.4 m s^-1<td>
+  \(v = 3.4\  \frac{\mathrm{m}}{\mathrm{s}}\)
+<tr><td>R = 8.314 J/(mol K)<td>
+  \(R = 8.314\  \frac{\mathrm{J}}{\mathrm{K}\ \mathrm{mol}}\)
+<tr><td>R = 8.314 J mol^-1 K^-1<td>
+  \(R = 8.314\  \frac{\mathrm{J}}{\mathrm{K}\ \mathrm{mol}}\)
+</table>
+
+
+<h2>Meaningful names for quantities</h2>
+<p>Names for quantities have to start with a letter, and can't contain spaces (see exceptions below).
+Otherwise, you can choose any combination of letters, numbers and special characters to name quantities.
+There are some conventions to format names with subscripts and chemistry markup.
+
+
+<p>
+Subscripts are preceded by
+an underscore, as in v_t. If the name starts with a single letter followed by digits, such as v0, the number is written
+as subscript (i.e. you don't have to write v_0). Multiple underscores result in multiple subscripts separated by commas in the
+marked-up version.  Examples are in the top half of the table.
+
+<p>
+To show chemical formulae and equations with a minimum of typing, enclose them in brackets. If the name starts
+with a bracket, they will be retained in the formatted version (this is a convention to write concentrations).
+If the brackets occur later in a name, they are dropped, and what is inside them is formatted as subscript,
+with chemical formulae and equations typeset by the mhchem package of LateX (link). Spaces are allowed within
+the brackets. Examples are in the bottom half of the table.
+
+<table align = "center" border="2" cellpadding="4">
+<tr><td>v_t = 0<td>
+  \(v_{\mathrm{t}} = 0\)
+<tr><td>v0 = 0<td>
+  \(v_{0} = 0\)
+<tr><td>v_x_y = 0<td>
+  \(v_{\mathrm{x},\mathrm{y}} = 0\)
+<tr><td>[Ca^2+] = 0<td>
+  \([\ce{Ca^2+}] = 0\)
+<tr><td>m[H2O] = 0<td>
+  \(m_{\ce{H2O}} = 0\)
+<tr><td>K[2NO2 <=> N2O4] = 1<td>
+  \(K_{\ce{2NO2 <=> N2O4}} = 1\)
+</table>
+
+
+<h2>Units recognized by PQcalc</h2>
+
+PQcalc knows about the international units m, s, kg, K, A, mol, Cd for length, time, mass, temperature, electrical current,
+chemical amount, and luminous intensity. It also knows about metric prefices (smaller thant the original unit:
+milli, micro, nano, pico; larger than the original unit: kilo, Mega, Giga). Moreover, it knows about common combined units
+(such as N for force, J for energy, W for power). In addition, it has some non-SI units built
+in (atm and mmHg for pressure, min and h for time, L for length cubed, M as an abbreviation of mol/L, eV for energy). All
+of these units may be used to enter quantities.
+
+When you do arithmetic with multiple quantities, PQcalc figures out the units of the result. Here are some examples.
+
+    <table align = "center" border="2" cellpadding="4">
+    <tr><td>t_total = 3 min + 5. s<td>
+      \(t_{\mathrm{total}} = 3\  \mathrm{min} + 5.\  \mathrm{s}\)
+      <br><br>\(\ \ \ =3.08\  \mathrm{min}\)
+    <tr><td>t_total using s<td>
+      \(t_{\mathrm{total}} = 3.08\  \mathrm{min}\)
+      <br><br>\(\ \ \ =185.\  \mathrm{s}\)
+    <tr><td>v = 50. m / t_total<td>
+      \(v = \dfrac{50.\  \mathrm{m}}{t_{\mathrm{total}}}\)
+      <br><br>\(\ \ \ =\dfrac{50.\  \mathrm{m}}{185.\  \mathrm{s}}\)
+      <br><br>\(\ \ \ =0.270\  \frac{\mathrm{m}}{\mathrm{s}}\)
+    <tr><td>t_shorter = 100. s<td>
+      \(t_{\mathrm{shorter}} = 100.\  \mathrm{s}\)
+    <tr><td>d_shorter = v * t_shorter<td>
+      \(d_{\mathrm{shorter}} = v \cdot t_{\mathrm{shorter}}\)
+      <br><br>\(\ \ \ =0.270\  \frac{\mathrm{m}}{\mathrm{s}} \cdot 100.\  \mathrm{s}\)
+      <br><br>\(\ \ \ =27.0\  \mathrm{m}\)
+    </table>
+
+
+
+
+<h2>Annotations</h2>
+In order to document the what, why and how of a calculation, the arithmetic done by PQcalc can be annnotated through
+comments written by the user. If you follow the suggested scaffold for solving a problem, it makes sense to comment on
+the setup (what is the problem in words?), the solution (what are the steps in a multi-step problem), and the interpretation
+of the results (is the answer in the expected range with the correct dimensions?). Comments that start with a pound sign (#) are copied verbatim into the
+output of PQcalc unless they are surrounded by brackets (chemistry markup) or preceded by an underscore (markup like the
+name of a quantity). Comments that start with an exclamation mark (!) are shown in larger font with chemistry markup, and
+are conveniently used to show balanced chemical equations.
+
+    <table align = "center" border="2" cellpadding="4">
+    <tr><td># This is a comment<td>
+       This is a comment
+    <tr><td># Spaces &nbsp;&nbsp;&nbsp;&nbsp; in comments are retained<td>
+       Spaces &nbsp;&nbsp;&nbsp;&nbsp; in comments are retained
+    <tr><td># The quantity _v_0  refers to the initial velocity<td>
+       The quantity \(v_{\mathrm{0}}\) refers to the initial velocity
+    <tr><td># The formula of water is [H2O]<td>
+       The formula of water is \(\ce{H2O}\)
+    <tr><td>! 2H2 + O2 -> 2H2O<td>
+      \(\ce{\  2H2 + O2 -> 2H2O }\)
+    </table>
+
+<h2>Performing calculations</h2>
+
+Calculations are entered in the general format "calculated quantity = operations on defined quantities". You can add ("+"
+and subtract ("-"), multiply ("*") and divide ("/"), and raise to a power ("^"). Moreover, you can apply functions to quantities
+as described in the next section.
+
+    <table align = "center" border="2" cellpadding="4">
+    <tr><td>t_a = 0.05 s<br><br>t_b = 52.100 s<br><br>dist = 4.52 m<td>
+      \(t_{\mathrm{a}} = 0.05\  \mathrm{s}\)
+      <br><br>\(t_{\mathrm{b}} = 52.100\  \mathrm{s}\)
+      <br><br>\(\mathrm{dist} = 4.52\  \mathrm{m}\)
+    <tr><td>t_diff = t_b - t_a<td>
+      \(t_{\mathrm{diff}} = t_{\mathrm{b}} - t_{\mathrm{a}}\)
+      <br><br>\(\ \ \ =52.100\  \mathrm{s} - 0.05\  \mathrm{s}\)
+      <br><br>\(\ \ \ =52.05\  \mathrm{s}\)
+    <tr><td>t_ratio = t_a / t_b<td>
+      \(t_{\mathrm{ratio}} = \dfrac{t_{\mathrm{a}}}{t_{\mathrm{b}}}\)
+      <br><br>\(\ \ \ =\dfrac{0.05\  \mathrm{s}}{52.100\  \mathrm{s}}\)
+      <br><br>\(\ \ \ =1\times 10^{-3}\)
+    <tr><td>v = dist / (t_a + t_b)<td>
+      \(v = \dfrac{\mathrm{dist}}{t_{\mathrm{a}} + t_{\mathrm{b}}}\)
+      <br><br>\(\ \ \ =\dfrac{4.52\  \mathrm{m}}{0.05\  \mathrm{s} + 52.100\  \mathrm{s}}\)
+      <br><br>\(\ \ \ =\dfrac{4.52\  \mathrm{m}}{52.150\  \mathrm{s}}\)
+      <br><br>\(\ \ \ =0.0867\  \frac{\mathrm{m}}{\mathrm{s}}\)
+
+    </table>
+
+<h2>Functions</h2>
+<p>
+    PQcalc supports a limited set of functions. They were chosen to cover the basic needs of a General Chemistry course.
+    It is trivial to add other functions, especially if they are already available in python's math package.
+    The following functions accept a dimension-less argument and result in a dimension-less value:
+<ul>
+    <li> exp(q): exponential function</li>
+    <li> ln(q): natural logarithm</li>
+    <li> log(q): base 10 logarithm</li>
+    <li> sin(q): sine of radian argument</li>
+    <li> cos(q): cosine of radian argument</li>
+    <li> tan(q): tangent of radian argument</li>
+
+</ul>
+
+The following functions accept arguments with dimensions.
+<ul>
+    <li> minimum(q1, q2, ..): minimum of a list of quantities</li>
+    <li> maximum(q1, q2, ..): maximum of a list of quantities</li>
+    <li> sumover(q1, q2, ..): sum of a list of quantities</li>
+    <li> average(q1, q2, ..): average of a list of quantities</li>
+    <li> quadn(qA, qB, qC): yields one solution of the quadratic equation Axx + Bx + C = 0</li>
+    <li> quadp(qA, qB, qC): yields the other solution of the quadratic equation Axx + Bx + C = 0</li>
+    <li> absolute(q): absolute value of a quantity</li>
+    <li> sqrt(q): abbreviation for q^(1/2)</li>
+</ul>
+
+Finally, there are two convenience functions to convert temperatures given on the Celsius
+or Fahrenheit scale to a temperture given on the Kelvin scale. For technical reasons,
+the argument has to be given as a dimensionless number<ul>
+        <li> CtoKscale(q): yields the temperature (with units), e.g. CtoKscale(0.01) = 273.16 K</li>
+        <li> FtoKscale(q): yields the temperature (with units)</li>
+</ul>
+an argument. The functions "quadn()" and "quadp()" take three arguments, and solve a quadratic function with  coefficients
+A, B, and C. The function "average()" takes two or more arguments.
+
+<h2>Error messages and warnings</h2>
+
+Operations with physical quantities have more limitations than those with pure numbers. For example, you can't add
+quantities of different dimensions, and you can't take the logarithm of a quantity unless it is dimensionless, i.e.
+lacks units. PQcalc gives specific and detailed error messages and warnings, and shows which part of the calculation resulted in
+an error. Once you understand the error, you can press the back button on the browser to get back to the commands that
+resulted in the error, and fix it.
+
+    <table align = "center" border="2" cellpadding="4">
+    <tr><td>v = dist/t_a + t_b<td>
+      dist/t_a + t_b
+      <br><br><div style="color: red;">Calculation failed: Units in sum not compatible</div>
+      <br><br>\(\mathrm{problem} = \dfrac{\mathrm{dist}}{t_{\mathrm{a}}} + t_{\mathrm{b}}\)
+      <br><br>\(\ \ \ =\dfrac{4.52\  \mathrm{m}}{0.05\  \mathrm{s}} + 52.100\  \mathrm{s}\)
+      <br><br>\(\ \ \ =90.\  \frac{\mathrm{m}}{\mathrm{s}} + 52.100\  \mathrm{s}\)
+    <tr><td>log_fails = log(dist)<td>
+      log(dist)
+      <br><br><div style="color: red;">Calculation failed: Can't take log() of quantity with units</div>
+      <br><br>\(\mathrm{problem} = \mathrm{log}(\mathrm{dist})\)
+      <br><br>\(\ \ \ =\mathrm{log}(4.52\  \mathrm{m})\)
+    <tr><td>sqrt_ok = sqrt(t_a * t_b)<td>
+      \(\mathrm{sqrt}_{\mathrm{ok}} = \sqrt{t_{\mathrm{a}} \cdot t_{\mathrm{b}}}\)
+      <br><br>\(\ \ \ =\sqrt{0.05\  \mathrm{s} \cdot 52.100\  \mathrm{s}}\)
+      <br><br>\(\ \ \ =\sqrt{2.61\  \mathrm{s}^{2}}\)
+      <br><br>\(\ \ \ =1.6\  \mathrm{s}\)
+    <tr><td>sqrt_warning = sqrt(t_a)<td>
+      \(\mathrm{sqrt}_{\mathrm{warning}} = \sqrt{t_{\mathrm{a}}}\)
+      <br><br>\(\ \ \ =\sqrt{0.05\ \mathrm{s}}\)
+      <br><br>\(\ \ \ =0.22\ \mathrm{s}^{1/2}\)
+      <br><br><div style="color: green;">Warning: Units have non-integer exponents 1/2</div>
+    </table>
+
+<h2>Viewing results</h2>
+
+The output of a calculation shows all the steps. First, the commands input by the user are shown, then the values
+are substituted, and then results of the requested operations are shown step by step. Scanning from one line of output
+to the next, you can follow in which order the operations were done, what happens to the units along the way, and what
+the final result is. The intermediate results are shown with more digits than the significant digits ("guard digits"),
+but the final result is shown with the appropriate number of significant digits. To switch the result (and any further
+calculations done with that quantity) to a different set of units, you use a separate command, "using", as illustrated
+below. To see quantities in units that are not hard-coded into PQcalc, you first have to define the unit (as a quantity)
+and then use the command "in" to see a quantity in that non-standard unit.
+
+    <table align = "center" border="2" cellpadding="4">
+    <tr><td>ΔP = 5.0 atm - 760 mmHg<td>
+      \(\mathrm{ΔP} = 5.0\  \mathrm{atm} - 760\  \mathrm{mmHg}\)
+      <br><br>\(\ \ \ =4.0\  \mathrm{atm}\)
+    <tr><td>ΔP using mmHg<td>
+      \(\mathrm{ΔP} = 4.0\  \mathrm{atm}\)
+      <br><br>\(\ \ \ =3.0\times 10^{3}\  \mathrm{mmHg}\)
+    <tr><td>ΔP using m kg<td>
+      \(\mathrm{ΔP} = 3.0\times 10^{3}\  \mathrm{mmHg}\)
+      <br><br>\(\ \ \ =4.1\times 10^{5}\  \frac{\mathrm{kg}}{\mathrm{m}\ \mathrm{s}^{2}}\)
+    <tr><td>ΔP using Pa<td>
+      \(\mathrm{ΔP} = 4.1\times 10^{5}\  \frac{\mathrm{kg}}{\mathrm{m}\ \mathrm{s}^{2}}\)
+      <br><br>\(\ \ \ =4.1\times 10^{5}\  \mathrm{Pa}\)
+
+    <tr><td>psi = 14.69594877551 atm<br><br>ΔP in psi<td>
+      \(\mathrm{psi} = 14.69594877551\  \mathrm{atm}\)
+      <br><br>\(\mathrm{ΔP} = \dfrac{\mathrm{ΔP}}{\mathrm{psi}}\mathrm{\ \mathrm{psi}}\)
+      <br><br>\(\ \ \ =\dfrac{ΔP}{14.69594877551\  \mathrm{atm}}\mathrm{\ \mathrm{psi}}\)
+      <br><br>\(\ \ \ =\dfrac{4.1\times 10^{5}\  \mathrm{Pa}}{14.69594877551\  \mathrm{atm}}\mathrm{\ \mathrm{psi}}\)
+      <br><br>\(\ \ \ =0.272\mathrm{\ \mathrm{psi}}\)
+    <tr><td>P2 = ΔP * 2<td>
+      \(P_{2} = \mathrm{ΔP} \cdot 2\)
+      <br><br>\(\ \ \ =4.1\times 10^{5}\  \mathrm{Pa} \cdot 2\)
+      <br><br>\(\ \ \ =8.1\times 10^{5}\  \mathrm{Pa}\)
+    </table>
+
+<h2>Adapting to the level of the user</h2>
+There are five so-called switches that change the behavior of PQcalc to adopt to the level of the user. The switches are
+__tutor__, __checkunits__, __skip__, __showuncert__, and __fracunits__. They are turned on by assigning "1" to them, and turned off by
+assigning "0" to them. The default behaviour is for an intermediate student.
+<p>The __tutor__ and __checkunits__ switches
+are for the beginning student. __tutor__ mirrors the student input as plain text in the output before showing the
+formatted output. This gives the student a direct comparison of plain text input and interpretation, and is good practice
+of when parentheses are needed in the linear plain text input. The __checkunits__ switch causes PQcalc to infer the
+dimensions of quantities from the first letter of the chosen name. For example, t0 is expected to have dimensions of time,
+while T0 is expected to have dimensions of temperature. If the units given to the quantities do not meet these expectations,
+a warning message is issued.
+
+<p>The switches __skip__, __showuncert__ and __fracunits__ are for advanced students. Turning on __skip__ suppresses showing the intermediate
+steps in the arithmetic. This may be advantageous for multi-step calculations to save screen space and allow a better overview
+of the entire argument leading to the desired result. Turning on __showuncert__ switches to a slightly more sophisticated
+treatment of error propagation, where the uncertainty in the least significant digit is given explicitly. For example, a result
+would be given as a = 4.531(5) instead of a = 4.531. It is possible to enter numbers in this format as well, if uncertainties
+are known to this level of detail (e.g. if average value and standard error of the average are known based on multiple
+measurements of a quantity). Turning on __fracunits__ suppresses a warning message when units have fractional exponents, e.g.
+when calculating a rate constant reaction of a reaction with reaction order one half.
+
+<p>To automatically turn on switches for a group of students, you can set switches in the link to the PQcalc site. The switches
+stay turned on for the remainder of the session unless turned of explicitly by setting them to zero, or by pressing the reset button.
+For example, running PQcalc through the following link would turn on features for beginning students: <a href="http://ktheis.pythonanywhere.com/custom?switch=tutor*checkunits">ktheis.pythonanywhere.com/custom?switch=tutor*checkunits</a>.
+<\p>
+
+    <table align = "center" border="2" cellpadding="4">
+    <tr><td>__tutor__ = 1<br><br>m[MgSO4] = 34.563 g<td>
+      <pre>>>> m[MgSO4] = 34.563 g</pre>
+      \(m_{\ce{MgSO4}} = 34.563\  \mathrm{g}\)
+    <tr><td>__checkunits__ = 1<br><br>m[NaCl] = 3.4 mol<td>
+      \(m_{\ce{NaCl}} = 3.4\  \mathrm{mol}\)
+      <br><br><div style="color: green;">Warning: \(m_{\ce{NaCl}}\) looks like a mass, but units are strange</div>
+    <tr><td><td>
+    <tr><td>#normal behaviour, no switches<br><br>m_total = m[MgSO4] + m_beaker<td>
+      \(m_{\mathrm{total}} = m_{\ce{MgSO4}} + m_{\mathrm{beaker}}\)
+      <br><br>\(\ \ \ =34.563\  \mathrm{g} + 128.3\  \mathrm{g}\)
+      <br><br>\(\ \ \ =162.9\  \mathrm{g}\)
+    <tr><td><td>
+    <tr><td>__skip__ = 1<br><br>m_total = m[MgSO4] + m_beaker<td>
+      \(m_{\mathrm{total}} = m_{\ce{MgSO4}} + m_{\mathrm{beaker}}\)
+      <br><br>\(\ \ \ =162.9\  \mathrm{g}\)
+    <tr><td>__showuncert__ = 1<br><br>m_total = m[MgSO4] + 256.6(2) g <td>
+      \(m_{\mathrm{total}} = m_{\ce{MgSO4}} + 256.6(2)\  \mathrm{g}\)
+      <br><br>\(\ \ \ =34.563(1)\  \mathrm{g} + 256.6(2)\  \mathrm{g}\)
+      <br><br>\(\ \ \ =291.2(2)\  \mathrm{g}\)
+    </table>
+
+
+
+<h2>Features specifically for teaching</h2>
+To make sure students don't forget how the to the arithmetic with numbers and units while using PQcalc, there are two
+switches that hide either units or numbers in the calculation output. Using these switches, it is easy to make a
+worksheet for practicing these mathematical skills, or to project a partial solution in the class room as basis for
+discussing these aspects. If an instructor does not wish students to use PQcalc for a given homework assignment, the
+use of certain “magic” numbers (such as “19.9351”) in a problem will be detected by PQcalc, and the calculator will not
+proceed with the calculation.
+
+Two switches help in formatting output. Turning on the __latex__ switch produces LaTeX output instead of formatted output,
+making it easy to copy and paste math and chemistry into a LaTeX document. Turning on the __scrunch__ switch decreases the
+line spacing, which sometimes is useful for printing a calculation. To print, use the printing feature of the browser, and
+to add a calculation into a slide, take a screen shot.
+
+The __oneline__ switch changes the input box to a single line. Hitting the return key on the keyboard now submits the
+command rather than resulting a line break. This feature might be helpful in a class room situation where it is difficult
+to switch from keyboard to mouse, and where the instructor wants to give one line of input, submit it, discuss the results
+and then type in the next line of input.
+
+    <table align = "center" border="2" cellpadding="4">
+    <tr><td>t_Trip = 4.3 h<br><br>d_Trip = 231. km<td>
+      \(t_{\mathrm{Trip}} = 4.30\  \mathrm{h}\)
+      <br><br>\(d_{\mathrm{Trip}} = 231.\  \mathrm{km}\)
+    <tr><td>__hideunits__ = 1<br><br>v_Trip = d_Trip / t_Trip<td>
+      \(v_{\mathrm{Trip}} = \dfrac{d_{\mathrm{Trip}}}{t_{\mathrm{Trip}}}\)
+      <br><br>\(\ \ \ =\dfrac{231.\phantom{\frac{km mol}{kg mol}}}{4.30\phantom{\frac{km mol}{kg mol}}}\)
+      <br><br>\(\ \ \ =53.7\phantom{\frac{km mol}{kg mol}}\)
+    <tr><td>__hidenumbers__ = 1<br><br>v_Trip = d_Trip / t_Trip<td>
+      \(v_{\mathrm{Trip}} = \dfrac{d_{\mathrm{Trip}}}{t_{\mathrm{Trip}}}\)
+      <br><br>\(\ \ \ =\dfrac{231.\  \mathrm{km}}{4.30\  \mathrm{h}}\)
+      <br><br>\(\ \ \ =\_\_\_\_\_\_\_\_\_\_\_\_\  \frac{\mathrm{km}}{\mathrm{h}}\)
+    </table>
+
+<h2>Features of the user interface</h2>
+Apart from the textbox for typed user input, the user interface includes some selectors and buttons to help using the calculator.
+<ul>
+<li>Shortcut buttons and selectors</li>
+    The selectors under the input box may be used to save some typing effort, and to have access to some commonly used symbols.
+    In particular, the quantities selector gives access to all the defined names of quantities. Alternatively, some browsers
+    allow clicking on the results above the input box to paste quantity names into the input box.
+    The buttons labeled "+", "-", "*", "/", "()", "=", "[]" provide shortcuts to the respective symbols, and are particularly useful
+    on mobile devices lacking a full keyboard.
+
+<li>Help</li>
+    The "help" button brings up a short text including a link to this manual, followed by a series of examples illustrating
+    features of PQcalc. To work through an example, click on the link. This will preload commands into the input box. Once you
+    click "submit", you can see the results of that particular calculation.
+
+<li>Communicating solutions and results</li>
+    The "export" button will open a new page summarizing the session in three parts. The first part shows all defined
+    quantities. The second part shows the commands that have been input during the session. Finally, the third part shows
+    the result of the calculations. The first and second part of the page are not typeset, but are rather given in plain
+    text, allowing for uncomplicated copy and paste into emails, learning management systems and other forms of peer-to-peer
+    and student-teacher channels of communication. This makes it easier to share model solutions or to submit homework.
+</ul>
+
+<h2>Limitations</h2>
+<p>
+    Internally, PQcalc stores numbers in a format that is limited both in terms of the largest number and the precision
+of the numbers. The largest number is about \(2 \times 10^{308}\), and if numbers are larger than that, it will result in
+an error. The smallest positive number is about \(2 \times 10^{-16}\), and if you try to make an even smaller number,
+it will turn into zero. Because of the way numbers are stored, they have a maximum of 16 significant figures, so if
+more digits are displayed, they carry no information. Most calculations are not affected by these numerical limitations,
+although very small or very large numbers might be encountered when doing subatomic or astronomical calculations in
+SI units, the units PQcalc uses internally.
+</p>
+<p>
+    PQcalc works exclusively with scalar real quantities. Thus, it does not support imaginary and complex numbers. It also
+    does not support vectors, matrices or tensors. While it would be trivial to expand the program to deal with these, it
+    would complicate the user interface substantially. It also does not include statistics functions or ways of dealing
+    with large sets of measurements simultaneously. When students have reached a level where this degree of complexity
+    is required to solve problems, it might make sense to switch to a full-fledged math or statistics software package
+    such as matlab, mathematica, R or sage.
+</p>
+
+<h2>Significant figures</h2>
+<p>
+    Internally, PQcalc assigns every quantity an uncertainty. Quantities defined by their value (e.g. m = 2.4 g)
+    are assigned an uncertainty based on the last digit given, i.e. 0.1 g in the example. For values that lack decimal
+    points (such as n = 1 mol), the uncertainty is set to zero. It is also possible to enter uncertainty using a
+    parentheses format (e.g. m = 2.423(7) g), which in the example would be interpreted as an uncertainty of 0.007 g.
+</p>
+
+<p>
+    For derived quantities, uncertainties are propagated using a model that assumes gaussian distributions of errors.
+    If there are two quantities q1 and q2 with values v1 and v2 and uncertainties d1 and d2, the uncertainty d3 of the
+    quantity q3 given by the possible binary operations q3 = (q1 op q2) is estimated as:
+    <ul>
+    <li> Addition/Subtraction: \(d_{3} = \sqrt{{d_{1}}^{2} + {d_{2}}^{2}}\)</li>
+    <li> Multiplication/Division: \(d_{3} = |v_{3}| \cdot \sqrt{{(\dfrac{d_{1}}{v_{1}})}^{2} + {(\dfrac{d_{2}}{v_{2}})}^{2}}\)</li>
+    <li> Raising q1 to the power of q2: \(d_{3} = |v_{3}| \cdot (|\dfrac{d_{1}}{v_{1}} \cdot v_{2}| + d_{2} \cdot \mathrm{ln}( |v_{1}| ))\)</li>
+    </ul>
+
+    For unary functions q2 = f(q1), the uncertainty d2 of q2 is calculated as:
+    <ul>
+    <li> exp(q1): \(d_{2} = d_{1} \cdot |v_{2}|\) </li>
+    <li> ln(q1): \(d_{2} = \dfrac{d_{1}}{|v_{1}|}\) </li>
+    <li> log(q1): \(d_{2} = \dfrac{d_{1}}{|v_{1}|}\) </li>
+    </ul>
+
+    To let the user explore how error propagation is estimated in PQcalc and how uncertainties are shown as significant
+    figures (normal behaviour) or in parentheses (i.e. with the __showuncert__ switch on), PQcalc has two functions that show
+    the value of a quantity with more digits (moredigits(q)) and the uncertainty d associated with a quantity
+    (uncertainty(q)). In calculations, intermediate values are shown with an additional 'guard digit' to be able
+    to follow and recapitulate intermediate steps without loosing information.
+</p>
+
+<h2>Installing a server</h2>
+<p>
+    The source files necessary for installing PQcalc are available on GitHub under ktheis/pqcalc:
+
+    <ul>
+        <li> quantities.py </li>
+        <li> calculate.py </li>
+        <li> server.py </li>
+        <li> form.py </li>
+    </ul>
+
+    To run a local server, you need to have
+    Python 2.7 installed, together with the package web.py. After placing all python source files into a common
+    directory, you run the server.py script and keep it running as long as you want to serve the PQcalc application. In
+    the browser, you go to 'localhost:8080' to run the application. PQcalc will access one external site,
+    http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML, containing the code to markup
+    mathematical and chemical formulas. It is possible to install a local copy of this as well if PQcalc should run
+    on a machine not connected to the internet (you have to change the hyperlink in the form.py file).
+
+</p>
+<p>
+    To run a server on the internet, you either can use a provider (such as pythonanywhere.com) or run your own host.
+    Again, you will have to have Python 2.7 and web.py installed (with some changes in the server.py file, you could
+    also use a web framework other than web.py). The details of how to start and monitor the web site will depend on the
+    specific circumstances, and it would probably be best to work together with someone who has experience in running
+    a web application.
+
+</p>
+
+</body>
+</html>
