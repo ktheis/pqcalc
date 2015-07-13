@@ -815,7 +815,7 @@ def create_comment(a, state):
         state.printnlog('<br><span style="color: maroon;font-size: 14pt;">\\(\\ce{\\ %s}\\)<br></span>' % a[1:])
     else:
         formatted = markup_comments(a[1:])
-        state.printnlog('<div style="color: cornflowerblue; font-size: 11pt;">%s</div>' % formatted)
+        state.printnlog('<div style="color: blue; font-size: 11pt;">%s</div>' % formatted)
 
 
 def markup_comments(line):
