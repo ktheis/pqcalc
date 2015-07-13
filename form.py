@@ -614,6 +614,18 @@ m[AgCl]theoretical = n[AgCl]A * M[AgCl]
 m[AgCl]actual = m_prec
 yield = m[AgCl]actual / m[AgCl]theoretical
 
+problem = units with non-integer powers
+#The reaction of chlorine with chloroform to yield carbon tetrachloride and hydrogen chloride is
+! Cl2 + CHCl3 -> CCl4 + HCl
+# The observed rate expression for production of HCl is first order in chloroform and half order in chlorine
+# If the rate is 0.183 M/s and the concentrations of chloroform and chlorine are 0.400 M and 1.52 mM, respectively, what is the rate constant of the reaction?
+rate = 0.183 M/s
+[Cl2] = 1.52 mM
+[CHCl3] = 0.400 M
+k[->] = rate / ( [Cl2]^(1/2) * [CHCl3] )
+
+
+
 problem = error in adding
 a = 5.6 km + 25.1 mol
 
@@ -632,10 +644,10 @@ a = minimum(7 M, 34 mol)
 problem = limitations: numeric overflow
 a = 10^10^10
 
-problem = error in square root
+problem = warning in square root
 #This works
 a = sqrt(2.3 mm * 4.9 km)
-#This doesn't
+#This works too, but results in a warning
 a = sqrt(2.3 mm * 4.13 g)
 
 problem = limitations: imaginary numbers
